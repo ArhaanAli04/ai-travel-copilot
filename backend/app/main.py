@@ -5,6 +5,7 @@ from app.core.postgres import test_connection as test_postgres
 from app.core.mongo import connect_to_mongo, close_mongo_connection
 from app.core.qdrant import connect_to_qdrant
 import logging
+from app.api import planner
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +31,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(planner.router, prefix="/api")
 
 
 # Health check endpoint

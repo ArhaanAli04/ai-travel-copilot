@@ -12,6 +12,11 @@ from app.core.config import settings
 from app.core.postgres import Base
 
 # Import all models here so Alembic can detect them
+from app.models.user import User
+from app.models.trip import Trip
+from app.models.trip_day import TripDay
+from app.models.activity import Activity
+
 # (We'll add imports as we create models)
 
 # this is the Alembic Config object
