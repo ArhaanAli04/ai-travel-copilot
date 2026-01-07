@@ -1,7 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import Planner from './pages/Planner';
 import './App.css';
 
-// Placeholder components (we'll build these properly later)
+// Placeholder components
 const Home = () => (
   <div style={{ textAlign: 'center', padding: '3rem' }}>
     <h1>🌍 AI Travel Copilot</h1>
@@ -12,16 +13,8 @@ const Home = () => (
   </div>
 );
 
-const Planner = () => (
-  <div>
-    <h2>✈️ Trip Planner</h2>
-    <p>AI-powered itinerary generation and re-planning</p>
-    <p style={{ color: '#999' }}>Coming soon in Day 3...</p>
-  </div>
-);
-
 const Disruption = () => (
-  <div>
+  <div style={{ padding: '2rem' }}>
     <h2>🚨 Disruption Copilot</h2>
     <p>Handle flight delays, cancellations, and rerouting</p>
     <p style={{ color: '#999' }}>Coming soon in Day 11...</p>
@@ -29,7 +22,7 @@ const Disruption = () => (
 );
 
 const Local = () => (
-  <div>
+  <div style={{ padding: '2rem' }}>
     <h2>📍 Local Discovery</h2>
     <p>Find hyper-local experiences and hidden gems</p>
     <p style={{ color: '#999' }}>Coming soon in Day 16...</p>
@@ -37,7 +30,7 @@ const Local = () => (
 );
 
 const Safety = () => (
-  <div>
+  <div style={{ padding: '2rem' }}>
     <h2>🛡️ Safety & Scam Awareness</h2>
     <p>Stay safe with real-time advisories and scam alerts</p>
     <p style={{ color: '#999' }}>Coming soon in Day 21...</p>
@@ -72,7 +65,7 @@ function App() {
           </div>
         </nav>
         
-        <main style={{ padding: '2rem', flex: 1 }}>
+        <main style={{ flex: 1, background: '#f9f9f9' }}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/planner" element={<Planner />} />
@@ -89,7 +82,7 @@ function App() {
           color: '#666',
           fontSize: '0.9rem'
         }}>
-          AI Travel Copilot v0.1.0 | Day 2 Complete ✅
+          AI Travel Copilot v0.2.0 | Day 4 Complete ✅
         </footer>
       </div>
     </Router>
