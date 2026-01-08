@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     
     # AI - Google Gemini
     GEMINI_API_KEY: str
-    
+
+    SERPAPI_KEY: str 
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

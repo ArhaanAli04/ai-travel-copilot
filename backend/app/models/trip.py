@@ -49,6 +49,7 @@ class Trip(Base):
     
     # Relationships
     days = relationship("TripDay", back_populates="trip", cascade="all, delete-orphan")
+    flights = relationship("Flight", back_populates="trip", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Trip(id={self.id}, title='{self.title}', destinations={self.destinations})>"

@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { tripApi, type Trip, type TripCreate } from '../services/api';
-
+import { tripApi, type Trip, type TripCreate} from '../services/api';
+import AirportAutocomplete from '../components/AirportAutocomplete';
+import FlightPreferences from '../components/FlightPreferences';
+import FlightSection from '../components/FlightSection';
 const Planner = () => {
   // Form state
   const [formData, setFormData] = useState<TripCreate>({
@@ -26,6 +28,10 @@ const Planner = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'form' | 'result'>('form');
+  const [originCode, setOriginCode] = useState('');
+  const [destinationCodes, setDestinationCodes] = useState<string[]>(['']);
+
+  
 
   // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -60,10 +66,11 @@ const Planner = () => {
   // Handle destinations
   const addDestination = () => {
     setFormData(prev => ({
-      ...prev,
-      destinations: [...prev.destinations, '']
+        ...prev,
+        destinations: [...prev.destinations, '']
     }));
-  };
+    setDestinationCodes(prev => [...prev, '']);  // ✅ ADD THIS LINE
+    };
 
   const updateDestination = (index: number, value: string) => {
     const newDestinations = [...formData.destinations];
@@ -144,6 +151,7 @@ const Planner = () => {
       setLoading(false);
     }
   };
+  
 
   // Reset form
   const resetForm = () => {
@@ -211,22 +219,16 @@ const Planner = () => {
           {/* Origin */}
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-              Starting From *
+                Starting From *
             </label>
-            <input
-              type="text"
-              name="origin"
-              value={formData.origin}
-              onChange={handleInputChange}
-              placeholder="e.g., Mumbai, India"
-              required
-              style={{ 
-                width: '100%', 
-                padding: '0.75rem', 
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '8px'
-              }}
+            <AirportAutocomplete
+                value={formData.origin}
+                onChange={(display, code) => {
+                setFormData(prev => ({ ...prev, origin: display }));
+                setOriginCode(code);
+                }}
+                placeholder="Search city or airport (e.g., Mumbai, BOM)"
+                required
             />
           </div>
 
@@ -237,19 +239,16 @@ const Planner = () => {
             </label>
             {formData.destinations.map((dest, index) => (
               <div key={index} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input
-                  type="text"
-                  value={dest}
-                  onChange={(e) => updateDestination(index, e.target.value)}
-                  placeholder={`Destination ${index + 1}`}
-                  required
-                  style={{ 
-                    flex: 1, 
-                    padding: '0.75rem', 
-                    fontSize: '1rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px'
-                  }}
+                <AirportAutocomplete
+                    value={dest}
+                    onChange={(display, code) => {
+                        updateDestination(index, display);
+                        const newCodes = [...destinationCodes];
+                        newCodes[index] = code;
+                        setDestinationCodes(newCodes);
+                    }}
+                    placeholder={`Search destination ${index + 1}`}
+                    required
                 />
                 {formData.destinations.length > 1 && (
                   <button 
@@ -503,6 +502,9 @@ const Planner = () => {
             </label>
           </div>
 
+          {/* Flight Preferences Component */}
+          <FlightPreferences formData={formData} setFormData={setFormData} />
+
           {/* Notes */}
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
@@ -547,71 +549,77 @@ const Planner = () => {
       ) : (
         // Result View
         <div>
-          <div style={{ 
-            padding: '2rem', 
-            background: '#f0f9ff', 
-            borderRadius: '12px',
-            marginBottom: '2rem'
-          }}>
-            <h2 style={{ color: '#4CAF50', marginBottom: '1rem' }}>
-              ✅ Trip Created Successfully!
-            </h2>
-            <p style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>
-              <strong>Trip ID:</strong> {createdTrip?.id}
-            </p>
-            <p style={{ fontSize: '1.2rem' }}>
-              <strong>Title:</strong> {createdTrip?.title}
-            </p>
-          </div>
+    <div style={{ 
+      padding: '2rem', 
+      background: '#f0f9ff', 
+      borderRadius: '12px',
+      marginBottom: '2rem'
+    }}>
+      <h2 style={{ color: '#4CAF50', marginBottom: '1rem' }}>
+        ✅ Trip Created Successfully!
+      </h2>
+      <p style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>
+        <strong>Trip ID:</strong> {createdTrip?.id}
+      </p>
+      <p style={{ fontSize: '1.2rem' }}>
+        <strong>Title:</strong> {createdTrip?.title}
+      </p>
+    </div>
 
-          {/* Display Trip JSON */}
-          <div style={{ marginBottom: '2rem' }}>
-            <h3 style={{ marginBottom: '1rem' }}>Trip Details (JSON):</h3>
-            <pre style={{ 
-              background: '#1e1e1e', 
-              color: '#d4d4d4',
-              padding: '1.5rem',
-              borderRadius: '8px',
-              overflow: 'auto',
-              fontSize: '0.9rem'
-            }}>
-              {JSON.stringify(createdTrip, null, 2)}
-            </pre>
-          </div>
+    <FlightSection 
+            trip={createdTrip!}
+            originCode={originCode}
+            destinationCodes={destinationCodes}
+    />
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button
-              onClick={handleFetchTrip}
-              disabled={loading}
-              style={{ 
-                padding: '1rem 2rem',
-                background: '#2196F3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontWeight: 'bold'
-              }}
-            >
-              {loading ? 'Fetching...' : '🔄 Refresh Trip Data'}
-            </button>
-            <button
-              onClick={resetForm}
-              style={{ 
-                padding: '1rem 2rem',
-                background: '#ff9800',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-              }}
-            >
-              ➕ Create Another Trip
-            </button>
-          </div>
-        </div>
+    {/* Display Trip JSON */}
+    <div style={{ marginBottom: '2rem' }}>
+      <h3 style={{ marginBottom: '1rem' }}>Trip Details (JSON):</h3>
+      <pre style={{ 
+        background: '#1e1e1e', 
+        color: '#d4d4d4',
+        padding: '1.5rem',
+        borderRadius: '8px',
+        overflow: 'auto',
+        fontSize: '0.9rem'
+      }}>
+        {JSON.stringify(createdTrip, null, 2)}
+      </pre>
+    </div>
+
+    {/* Action Buttons */}
+    <div style={{ display: 'flex', gap: '1rem' }}>
+      <button
+        onClick={handleFetchTrip}
+        disabled={loading}
+        style={{ 
+          padding: '1rem 2rem',
+          background: '#2196F3',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontWeight: 'bold'
+        }}
+      >
+        {loading ? 'Fetching...' : '🔄 Refresh Trip Data'}
+      </button>
+      <button
+        onClick={resetForm}
+        style={{ 
+          padding: '1rem 2rem',
+          background: '#ff9800',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontWeight: 'bold'
+        }}
+      >
+        ➕ Create Another Trip
+      </button>
+    </div>
+  </div>
       )}
     </div>
   );

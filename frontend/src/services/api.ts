@@ -52,6 +52,43 @@ export interface TripCreate {
   notes?: string;
 }
 
+export interface FlightSearchParams {
+  origin: string;
+  destination: string;
+  departure_date: string;
+  return_date?: string;
+  passengers: number;
+  cabin_class: 'economy' | 'premium_economy' | 'business' | 'first';
+  max_stops?: number;
+  max_price?: number;
+}
+
+export interface Flight {
+  id?: number;
+  airline: string;
+  airline_code?: string;
+  flight_number?: string;
+  departure_airport: string;
+  arrival_airport: string;
+  departure_city?: string;
+  arrival_city?: string;
+  departure_time: string;
+  arrival_time: string;
+  duration_minutes: number;
+  stops: number;
+  layover_airports?: string[];
+  cabin_class: string;
+  price_amount: number;
+  price_currency: string;
+  booking_url?: string;
+  aircraft_type?: string;
+  baggage_allowance?: Record<string, string>;
+  amenities?: string[];
+  is_selected?: boolean;
+  source?: string;
+  flight_direction?: string;
+}
+
 // API Functions
 export const tripApi = {
   // Create new trip
@@ -82,6 +119,52 @@ export const tripApi = {
   // Delete trip
   deleteTrip: async (tripId: number): Promise<void> => {
     await api.delete(`/trips/${tripId}`);
+  },
+};
+
+// Add to existing api object (after tripApi)
+export const flightApi = {
+  // Search flights
+  searchFlights: async (tripId: number, params?: FlightSearchParams): Promise<Flight[]> => {
+    const url = params 
+      ? `/trips/${tripId}/flights/search`
+      : `/trips/${tripId}/flights/search`;
+    const response = await api.post(url, params || {});
+    return response.data;
+  },
+
+  // Select flight
+  selectFlight: async (tripId: number, flight: Flight): Promise<Flight> => {
+    const response = await api.post(`/trips/${tripId}/flights/select`, {
+      flight_data: flight
+    });
+    return response.data;
+  },
+
+  // Get trip flights
+  getTripFlights: async (tripId: number): Promise<Flight[]> => {
+    const response = await api.get(`/trips/${tripId}/flights`);
+    return response.data;
+  },
+};
+
+// Airport autocomplete
+export interface AirportSuggestion {
+  code: string;
+  name: string;
+  city: string;
+  country: string;
+  display: string;
+}
+
+export const airportApi = {
+  // Search airports
+  searchAirports: async (query: string): Promise<AirportSuggestion[]> => {
+    if (query.length < 2) return [];
+    const response = await api.get('/airports/search', {
+      params: { q: query }
+    });
+    return response.data;
   },
 };
 
