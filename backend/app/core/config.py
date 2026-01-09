@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
+from typing import List,Optional
 
 
 class Settings(BaseSettings):
@@ -20,11 +20,22 @@ class Settings(BaseSettings):
     # Vector Database - Qdrant
     QDRANT_URL: str
     QDRANT_API_KEY: str
-    
+    QDRANT_COLLECTION_NAME: str = "travel_guides"
     # AI - Google Gemini
     GEMINI_API_KEY: str
 
     SERPAPI_KEY: str 
+
+    # Caching (NEW)
+    CACHE_TTL_DAYS: int = 30
+    CACHE_CHECK_INTERVAL_HOURS: int = 24
+    MAX_CHUNK_SIZE: int = 500
+    CHUNK_OVERLAP: int = 100
+    
+    # Web Search (NEW)
+    WEB_SEARCH_PROVIDER: str = "serpapi"
+    MAX_SEARCH_RESULTS: int = 7
+
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
