@@ -1,21 +1,25 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
-
-
+from datetime import time as Time
+from app.schemas.flight import FlightResponse
 # Activity Schemas
 class ActivityBase(BaseModel):
     title: str
     description: Optional[str] = None
     category: Optional[str] = None
-    start_time: Optional[str] = None  # "09:00"
-    end_time: Optional[str] = None
+    start_time: Optional[Time] = None  # "09:00"
+    end_time: Optional[Time] = None
     duration_minutes: Optional[int] = None
     location: Optional[str] = None
     address: Optional[str] = None
     estimated_cost: Optional[float] = None
     order: int
-
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            Time: lambda v: v.strftime("%H:%M") if v else None
+        }
 
 class ActivityCreate(ActivityBase):
     trip_day_id: int
@@ -30,6 +34,9 @@ class ActivityResponse(ActivityBase):
 
     class Config:
         from_attributes = True
+        json_encoders = {
+            Time: lambda v: v.strftime("%H:%M") if v else None
+        }
 
 
 # TripDay Schemas
@@ -49,7 +56,12 @@ class TripDayResponse(TripDayBase):
     id: int
     trip_id: int
     activities: List[ActivityResponse] = []
-
+    # Add weather fields to response
+    weather_temp_high: Optional[float] = None
+    weather_temp_low: Optional[float] = None
+    weather_condition: Optional[str] = None
+    weather_icon: Optional[str] = None
+    weather_precipitation_prob: Optional[float] = None
     class Config:
         from_attributes = True
 
@@ -102,7 +114,7 @@ class TripResponse(TripBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     days: List[TripDayResponse] = []
-
+    flights: List[FlightResponse] = [] 
     class Config:
         from_attributes = True
 

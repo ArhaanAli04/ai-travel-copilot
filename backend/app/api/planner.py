@@ -9,7 +9,7 @@ from app.schemas.trip import (
     TripCreate, TripUpdate, TripResponse, TripListResponse
 )
 import logging
-
+from app.ai.planner_agent import create_planner_agent
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/trips", tags=["Planner"])
@@ -167,3 +167,59 @@ async def delete_trip(trip_id: int, db: Session = Depends(get_db)):
         db.rollback()
         logger.error(f"❌ Failed to delete trip {trip_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete trip: {str(e)}")
+
+@router.post("/{trip_id}/plan", response_model=TripResponse)
+async def generate_itinerary(trip_id: int, db: Session = Depends(get_db)):
+    """
+    Generate AI-powered itinerary for a trip
+    
+    **What it does:**
+    1. Fetches weather forecast for trip dates
+    2. Uses TravelGuideRetriever to get local recommendations
+    3. Calls Gemini to generate day-by-day plans
+    4. Saves TripDay and Activity records to database
+    
+    **Requirements:**
+    - Trip must exist
+    - Trip must have start_date, end_date, and destinations
+    
+    **Returns:**
+    - Complete trip with days and activities
+    """
+    try:
+        # Check if trip exists
+        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        if not trip:
+            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        
+        # Validate trip has required fields
+        if not trip.destinations:
+            raise HTTPException(
+                status_code=400,
+                detail="Trip must have at least one destination"
+            )
+        
+        if not trip.start_date or not trip.end_date:
+            raise HTTPException(
+                status_code=400,
+                detail="Trip must have start_date and end_date"
+            )
+        
+        # Create planner agent
+        planner = create_planner_agent(db)
+        
+        # Generate itinerary
+        logger.info(f"🎯 Starting itinerary generation for trip {trip_id}")
+        updated_trip = await planner.generate_itinerary(trip_id)
+        
+        logger.info(f"✅ Itinerary generated for trip {trip_id}")
+        return updated_trip
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Itinerary generation failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate itinerary: {str(e)}"
+        )
