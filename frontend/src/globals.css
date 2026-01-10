@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+:root {
+  /* Dark theme base colors */
+  --background: #05070a;
+  --foreground: #e5e7eb;
+
+  /* Glass surfaces */
+  --card: rgba(17, 24, 39, 0.8);
+  --card-foreground: #e5e7eb;
+  --card-border: rgba(148, 163, 184, 0.15);
+
+  /* Primary - Electric Blue */
+  --primary: #38bdf8;
+  --primary-hover: #3b82f6;
+  --primary-foreground: #ffffff;
+
+  /* Secondary - Warm Orange */
+  --secondary: #f97316;
+  --secondary-foreground: #ffffff;
+
+  /* Success */
+  --success: #22c55e;
+  --success-foreground: #ffffff;
+
+  /* Destructive */
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  /* Text colors */
+  --text-primary: #ffffff;
+  --text-body: #e5e7eb;
+  --text-muted: #6b7280;
+  --text-secondary: #9ca3af;
+
+  /* Surface glass */
+  --glass-surface: rgba(17, 24, 39, 0.8);
+  --glass-border: rgba(148, 163, 184, 0.2);
+
+  --muted: #1f2937;
+  --muted-foreground: #9ca3af;
+
+  --accent: #38bdf8;
+  --accent-foreground: #ffffff;
+
+  --popover: rgba(17, 24, 39, 0.95);
+  --popover-foreground: #e5e7eb;
+
+  --border: rgba(148, 163, 184, 0.2);
+  --input: #1f2937;
+  --ring: #38bdf8;
+
+  --radius: 1.5rem;
+}
+
+@layer base {
+  
+  body {
+    background: linear-gradient(135deg, #05070a 0%, #0b1120 100%);
+    background-attachment: fixed;
+    color: #e5e7eb;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+/* Glass effect utilities */
+.glass-card {
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.glass-nav {
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Smooth animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}

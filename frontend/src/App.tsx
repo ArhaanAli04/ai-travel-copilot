@@ -1,90 +1,64 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Planner from './pages/Planner';
-import './App.css';
 
-// Placeholder components
+// Placeholder components (keep for future)
 const Home = () => (
-  <div style={{ textAlign: 'center', padding: '3rem' }}>
-    <h1>🌍 AI Travel Copilot</h1>
-    <p style={{ fontSize: '1.2rem', color: '#666' }}>
-      Your intelligent travel companion powered by AI
-    </p>
-    <p>Select a module from the navigation above to get started.</p>
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center px-8">
+      <h1 className="text-5xl font-bold text-white mb-4">🌍 AI Travel Copilot</h1>
+      <p className="text-xl text-[#9CA3AF] mb-6">
+        Your intelligent travel companion powered by AI
+      </p>
+      <a 
+        href="/planner" 
+        className="inline-block px-6 py-3 bg-gradient-to-r from-[#F97316] to-[#38BDF8] text-white rounded-xl font-semibold hover:scale-105 transition-transform"
+      >
+        Get Started →
+      </a>
+    </div>
   </div>
 );
 
 const Disruption = () => (
-  <div style={{ padding: '2rem' }}>
-    <h2>🚨 Disruption Copilot</h2>
-    <p>Handle flight delays, cancellations, and rerouting</p>
-    <p style={{ color: '#999' }}>Coming soon in Day 11...</p>
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center px-8">
+      <h2 className="text-4xl font-bold text-white mb-4">🚨 Disruption Copilot</h2>
+      <p className="text-lg text-[#9CA3AF] mb-2">Handle flight delays, cancellations, and rerouting</p>
+      <p className="text-[#6B7280]">Coming soon in Day 11...</p>
+    </div>
   </div>
 );
 
 const Local = () => (
-  <div style={{ padding: '2rem' }}>
-    <h2>📍 Local Discovery</h2>
-    <p>Find hyper-local experiences and hidden gems</p>
-    <p style={{ color: '#999' }}>Coming soon in Day 16...</p>
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center px-8">
+      <h2 className="text-4xl font-bold text-white mb-4">📍 Local Discovery</h2>
+      <p className="text-lg text-[#9CA3AF] mb-2">Find hyper-local experiences and hidden gems</p>
+      <p className="text-[#6B7280]">Coming soon in Day 16...</p>
+    </div>
   </div>
 );
 
 const Safety = () => (
-  <div style={{ padding: '2rem' }}>
-    <h2>🛡️ Safety & Scam Awareness</h2>
-    <p>Stay safe with real-time advisories and scam alerts</p>
-    <p style={{ color: '#999' }}>Coming soon in Day 21...</p>
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center px-8">
+      <h2 className="text-4xl font-bold text-white mb-4">🛡️ Safety & Scam Awareness</h2>
+      <p className="text-lg text-[#9CA3AF] mb-2">Stay safe with real-time advisories and scam alerts</p>
+      <p className="text-[#6B7280]">Coming soon in Day 21...</p>
+    </div>
   </div>
 );
 
 function App() {
   return (
     <Router>
-      <div className="app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <nav style={{ 
-          padding: '1rem 2rem', 
-          background: '#1a1a1a', 
-          color: 'white',
-          display: 'flex',
-          gap: '2rem',
-          alignItems: 'center'
-        }}>
-          <Link to="/" style={{ 
-            color: 'white', 
-            textDecoration: 'none', 
-            fontWeight: 'bold',
-            fontSize: '1.2rem'
-          }}>
-            AI Travel Copilot
-          </Link>
-          <div style={{ display: 'flex', gap: '1.5rem', marginLeft: 'auto' }}>
-            <Link to="/planner" style={{ color: 'white', textDecoration: 'none' }}>Planner</Link>
-            <Link to="/disruption" style={{ color: 'white', textDecoration: 'none' }}>Disruption</Link>
-            <Link to="/local" style={{ color: 'white', textDecoration: 'none' }}>Local</Link>
-            <Link to="/safety" style={{ color: 'white', textDecoration: 'none' }}>Safety</Link>
-          </div>
-        </nav>
-        
-        <main style={{ flex: 1, background: '#f9f9f9' }}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/planner" element={<Planner />} />
-            <Route path="/disruption" element={<Disruption />} />
-            <Route path="/local" element={<Local />} />
-            <Route path="/safety" element={<Safety />} />
-          </Routes>
-        </main>
-        
-        <footer style={{ 
-          padding: '1rem', 
-          textAlign: 'center', 
-          background: '#f5f5f5',
-          color: '#666',
-          fontSize: '0.9rem'
-        }}>
-          AI Travel Copilot v0.2.0 | Day 4 Complete ✅
-        </footer>
-      </div>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/planner" element={<Planner />} />
+        <Route path="/disruption" element={<Disruption />} />
+        <Route path="/local" element={<Local />} />
+        <Route path="/safety" element={<Safety />} />
+      </Routes>
     </Router>
   );
 }

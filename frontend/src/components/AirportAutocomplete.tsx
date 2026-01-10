@@ -6,9 +6,10 @@ interface AirportAutocompleteProps {
   onChange: (value: string, code: string) => void;
   placeholder?: string;
   required?: boolean;
+  className?: string;
 }
 
-const AirportAutocomplete = ({ value, onChange, placeholder, required }: AirportAutocompleteProps) => {
+const AirportAutocomplete = ({ value, onChange, placeholder, required,className }: AirportAutocompleteProps) => {
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<AirportSuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -73,94 +74,45 @@ const AirportAutocomplete = ({ value, onChange, placeholder, required }: Airport
         onChange={handleInputChange}
         placeholder={placeholder}
         required={required}
-        style={{
-          width: '100%',
-          padding: '0.75rem',
-          fontSize: '1rem',
-          border: '1px solid #ddd',
-          borderRadius: '8px',
-          background: selectedCode ? '#e8f5e9' : 'white'
-        }}
+        className={`w-full bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white placeholder:text-[#6B7280] rounded-lg h-12 px-4 focus:ring-2 focus:ring-[#38BDF8] focus:outline-none transition-all ${className || ''}`}
+        
       />
       
       {loading && (
-        <div style={{
-          position: 'absolute',
-          right: '1rem',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: '#666'
-        }}>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] text-sm">
           🔍
         </div>
       )}
 
-      {selectedCode && (
-        <div style={{
-          position: 'absolute',
-          right: '1rem',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: '#4CAF50',
-          fontWeight: 'bold'
-        }}>
+      {selectedCode && !loading && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#22C55E] text-xs font-semibold">
           ✓ {selectedCode}
         </div>
       )}
 
       {showDropdown && suggestions.length > 0 && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          maxHeight: '300px',
-          overflowY: 'auto',
-          background: 'white',
-          border: '1px solid #ddd',
-          borderRadius: '8px',
-          marginTop: '0.25rem',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 1000
-        }}>
+        <div className="absolute top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-[#020617] border border-[rgba(148,163,184,0.3)] rounded-xl shadow-xl z-50">
           {suggestions.map((airport) => (
-            <div
+            <button
+              type="button"
               key={airport.code}
               onClick={() => handleSelect(airport)}
-              style={{
-                padding: '0.75rem 1rem',
-                cursor: 'pointer',
-                borderBottom: '1px solid #f0f0f0',
-                transition: 'background 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+              className="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0"
             >
-              <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
+              <div className="font-semibold text-white">
                 {airport.name} ({airport.code})
               </div>
-              <div style={{ fontSize: '0.85rem', color: '#666' }}>
+              <div className="text-xs text-[#9CA3AF]">
                 {airport.city}, {airport.country}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
 
+
       {showDropdown && suggestions.length === 0 && !loading && query.length >= 2 && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          background: 'white',
-          border: '1px solid #ddd',
-          borderRadius: '8px',
-          marginTop: '0.25rem',
-          padding: '1rem',
-          textAlign: 'center',
-          color: '#666'
-        }}>
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[#020617] border border-[rgba(148,163,184,0.3)] rounded-xl px-4 py-3 text-center text-sm text-[#9CA3AF] z-50">
           No airports found
         </div>
       )}
