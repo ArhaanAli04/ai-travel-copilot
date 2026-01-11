@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { type Trip, type Flight,type FlightSearchParams, flightApi } from '../services/api';
+import { Plane, Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { type Trip, type Flight, type FlightSearchParams, flightApi } from '../services/api';
 import FlightSearchResults from './FlightSearchResults';
 
 interface FlightSectionProps {
@@ -20,9 +21,8 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
     setLoadingFlights(true);
     setError(null);
     try {
-      // Get trip type and return date
       const tripType = trip.flight_preferences?.trip_type || 'one_way';
-      
+
       const searchParams: FlightSearchParams = {
         origin: originCode || 'BOM',
         destination: destinationCodes[0] || 'DEL',
@@ -67,40 +67,45 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
   if (!trip.include_flights) return null;
 
   return (
-    <div style={{ marginBottom: '2rem' }}>
-      <h3 style={{ marginBottom: '1rem' }}>✈️ Flight Search</h3>
-      
+    <div className="mb-8 animate-fade-in">
+      <div className="flex items-center gap-3 mb-4">
+        <Plane className="w-6 h-6 text-[#38BDF8]" />
+        <h3 className="text-2xl font-bold text-white">Flight Search</h3>
+      </div>
+
       {error && (
-        <div style={{ 
-          padding: '1rem', 
-          background: '#fee', 
-          color: '#c00', 
-          borderRadius: '8px',
-          marginBottom: '1rem' 
-        }}>
-          {error}
+        <div className="glass-card rounded-2xl p-4 mb-4 border-[#EF4444]/30 bg-[#EF4444]/10">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-[#EF4444]" />
+            <p className="text-[#FCA5A5]">{error}</p>
+          </div>
         </div>
       )}
-      
+
       {!showFlightSearch ? (
         <button
           onClick={handleFlightSearch}
           disabled={loadingFlights}
-          style={{ 
-            padding: '1rem 2rem',
-            background: loadingFlights ? '#ccc' : '#2196F3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: loadingFlights ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold',
-            fontSize: '1rem'
-          }}
+          className={`px-6 py-3 rounded-xl font-bold text-white transition-all ${
+            loadingFlights
+              ? 'bg-[#6B7280] cursor-not-allowed'
+              : 'bg-[#38BDF8] hover:bg-[#0EA5E9] hover:scale-105 active:scale-95'
+          }`}
         >
-          {loadingFlights ? '🔍 Searching Flights...' : '🔍 Search Flights'}
+          {loadingFlights ? (
+            <span className="flex items-center gap-2">
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Searching Flights...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Search className="w-5 h-5" />
+              Search Flights
+            </span>
+          )}
         </button>
       ) : (
-        <FlightSearchResults 
+        <FlightSearchResults
           flights={flights}
           onSelectFlight={handleFlightSelect}
           loading={loadingFlights}
@@ -110,28 +115,60 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
 
       {/* Selected Flight Display */}
       {selectedFlight && (
-        <div style={{ 
-          marginTop: '1rem',
-          padding: '1.5rem',
-          background: '#e8f5e9',
-          borderRadius: '12px',
-          border: '2px solid #4CAF50'
-        }}>
-          <h3 style={{ color: '#4CAF50', marginBottom: '1rem' }}>
-            ✅ Flight Booked!
-          </h3>
-          <p style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-            <strong>{selectedFlight.airline} {selectedFlight.flight_number}</strong>
-          </p>
-          <p style={{ margin: '0.25rem 0' }}>
-            {selectedFlight.departure_city} ({selectedFlight.departure_airport}) → {selectedFlight.arrival_city} ({selectedFlight.arrival_airport})
-          </p>
-          <p style={{ margin: '0.25rem 0' }}>
-            {new Date(selectedFlight.departure_time).toLocaleString()} → {new Date(selectedFlight.arrival_time).toLocaleString()}
-          </p>
-          <p style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#4CAF50', marginTop: '0.5rem' }}>
-            ${selectedFlight.price_amount} {selectedFlight.price_currency}
-          </p>
+        <div className="glass-card rounded-3xl p-6 mt-4 border-[#22C55E]/30 bg-gradient-to-br from-[#22C55E]/10 to-[#38BDF8]/10 animate-fade-in">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle className="w-6 h-6 text-[#22C55E]" />
+            <h3 className="text-xl font-bold text-white">Flight Booked!</h3>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <p className="text-lg font-semibold text-white">
+                {selectedFlight.airline} {selectedFlight.flight_number}
+              </p>
+              <p className="text-sm text-[#9CA3AF]">{selectedFlight.aircraft_type}</p>
+            </div>
+
+            <div className="flex items-center justify-between py-3 px-4 bg-[#1F2937]/50 rounded-xl">
+              <div>
+                <p className="text-sm text-[#9CA3AF]">From</p>
+                <p className="text-white font-semibold">
+                  {selectedFlight.departure_city} ({selectedFlight.departure_airport})
+                </p>
+              </div>
+              <Plane className="w-5 h-5 text-[#38BDF8]" />
+              <div className="text-right">
+                <p className="text-sm text-[#9CA3AF]">To</p>
+                <p className="text-white font-semibold">
+                  {selectedFlight.arrival_city} ({selectedFlight.arrival_airport})
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-[#9CA3AF] mb-1">Departure</p>
+                <p className="text-sm text-white">
+                  {new Date(selectedFlight.departure_time).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[#9CA3AF] mb-1">Arrival</p>
+                <p className="text-sm text-white">
+                  {new Date(selectedFlight.arrival_time).toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-[rgba(148,163,184,0.2)]">
+              <div className="flex items-center justify-between">
+                <span className="text-[#9CA3AF]">Total Price</span>
+                <span className="text-2xl font-bold text-[#22C55E]">
+                  ${selectedFlight.price_amount} {selectedFlight.price_currency}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

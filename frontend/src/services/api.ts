@@ -139,6 +139,12 @@ export const tripApi = {
     const response = await api.get(`/trips/${tripId}`);
     return response.data;
   },
+  // List all trips (alias for better naming)
+  getAllTrips: async (userId?: number): Promise<Trip[]> => {
+    const params = userId ? { user_id: userId } : {};
+    const response = await api.get('/trips/', { params });
+    return response.data;
+  },
 
   // List all trips
   listTrips: async (userId?: number): Promise<Trip[]> => {

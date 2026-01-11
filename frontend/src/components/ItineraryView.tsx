@@ -1,4 +1,5 @@
 import { type Trip } from '../services/api';
+import { Calendar, Clock, DollarSign, MapPin, Sun, Cloud } from 'lucide-react';
 
 interface ItineraryViewProps {
   trip: Trip;
@@ -7,211 +8,154 @@ interface ItineraryViewProps {
 const ItineraryView = ({ trip }: ItineraryViewProps) => {
   if (!trip.days || trip.days.length === 0) {
     return (
-      <div style={{ 
-        padding: '2rem', 
-        background: '#fff3cd', 
-        borderRadius: '12px',
-        textAlign: 'center' 
-      }}>
-        <p style={{ fontSize: '1.1rem', color: '#856404' }}>
-          ℹ️ No itinerary generated yet. Click "Generate Itinerary" to create your trip plan.
+      <div className="glass-card rounded-3xl p-12 border-[rgba(148,163,184,0.2)] text-center">
+        <div className="w-16 h-16 rounded-full bg-[#F97316]/10 flex items-center justify-center mx-auto mb-4">
+          <Calendar className="w-8 h-8 text-[#F97316]" />
+        </div>
+        <h3 className="text-xl font-semibold text-white mb-2">No Itinerary Yet</h3>
+        <p className="text-[#9CA3AF]">
+          Click "Generate Itinerary" to create your AI-powered day-by-day trip plan
         </p>
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: '2rem' }}>
-      <h2 style={{ marginBottom: '1.5rem', color: '#333' }}>
-        📅 Your Itinerary
-      </h2>
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center gap-3 mb-6">
+        <Calendar className="w-6 h-6 text-[#38BDF8]" />
+        <h2 className="text-2xl font-bold text-white">Your Itinerary</h2>
+      </div>
 
-      {trip.days.map((day) => (
-        <div 
+      {trip.days.map((day, dayIndex) => (
+        <div
           key={day.id}
-          style={{
-            marginBottom: '2rem',
-            padding: '1.5rem',
-            background: '#fff',
-            borderRadius: '12px',
-            border: '2px solid #e0e0e0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-          }}
+          className="glass-card rounded-3xl p-6 border-[rgba(148,163,184,0.2)] animate-fade-in"
+          style={{ animationDelay: `${dayIndex * 0.1}s` }}
         >
           {/* Day Header */}
-          <div style={{ 
-            marginBottom: '1rem',
-            paddingBottom: '1rem',
-            borderBottom: '2px solid #f0f0f0'
-          }}>
-            <h3 style={{ 
-              fontSize: '1.5rem', 
-              color: '#2196F3',
-              marginBottom: '0.5rem'
-            }}>
-              Day {day.day_number} - {new Date(day.date).toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'short', 
-                day: 'numeric' 
-              })}
-            </h3>
-            
-            {day.theme && (
-              <p style={{ 
-                fontSize: '1.1rem', 
-                fontWeight: 'bold',
-                color: '#666',
-                marginBottom: '0.5rem'
-              }}>
-                🎯 {day.theme}
-              </p>
-            )}
-
-            {day.description && (
-              <p style={{ 
-                color: '#777',
-                marginBottom: '0.5rem'
-              }}>
-                {day.description}
-              </p>
-            )}
-
-            {/* Weather Info */}
-            {day.weather_icon && (
-              <div style={{ 
-                display: 'flex', 
-                gap: '1rem',
-                alignItems: 'center',
-                marginTop: '0.5rem',
-                padding: '0.5rem',
-                background: '#f8f9fa',
-                borderRadius: '8px'
-              }}>
-                <span style={{ fontSize: '1.5rem' }}>{day.weather_icon}</span>
-                <span style={{ color: '#666' }}>
-                  {day.weather_temp_high}°C / {day.weather_temp_low}°C
-                  {day.weather_condition && ` - ${day.weather_condition}`}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Activities List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {day.activities && day.activities.length > 0 ? (
-              day.activities.map((activity, index) => (
-                <div 
-                  key={activity.id}
-                  style={{
-                    padding: '1rem',
-                    background: '#f8f9fa',
-                    borderRadius: '8px',
-                    borderLeft: '4px solid #4CAF50'
-                  }}
-                >
-                  {/* Activity Header */}
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    marginBottom: '0.5rem'
-                  }}>
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ 
-                        fontSize: '1.1rem', 
-                        color: '#333',
-                        marginBottom: '0.25rem'
-                      }}>
-                        {index + 1}. {activity.title}
-                      </h4>
-                      
-                      {/* Time and Duration */}
-                      <div style={{ 
-                        display: 'flex', 
-                        gap: '1rem',
-                        fontSize: '0.9rem',
-                        color: '#666',
-                        marginBottom: '0.5rem'
-                      }}>
-                        {activity.start_time && (
-                          <span>🕐 {activity.start_time}</span>
-                        )}
-                        {activity.duration_minutes && (
-                          <span>⏱️ {activity.duration_minutes} min</span>
-                        )}
-                        {activity.category && (
-                          <span style={{ 
-                            padding: '0.25rem 0.5rem',
-                            background: '#e3f2fd',
-                            borderRadius: '4px',
-                            fontSize: '0.85rem'
-                          }}>
-                            {activity.category}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Cost */}
-                    {activity.estimated_cost !== undefined && activity.estimated_cost > 0 && (
-                      <div style={{ 
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold',
-                        color: '#4CAF50',
-                        textAlign: 'right'
-                      }}>
-                        ${activity.estimated_cost}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Description */}
-                  {activity.description && (
-                    <p style={{ 
-                      color: '#555',
-                      marginBottom: '0.5rem',
-                      fontSize: '0.95rem'
-                    }}>
-                      {activity.description}
-                    </p>
-                  )}
-
-                  {/* Location */}
-                  {activity.location && (
-                    <p style={{ 
-                      color: '#888',
-                      fontSize: '0.9rem',
-                      marginTop: '0.5rem'
-                    }}>
-                      📍 {activity.location}
+          <div className="mb-6 pb-4 border-b border-[rgba(148,163,184,0.2)]">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="px-3 py-1 rounded-full bg-[#38BDF8] text-white text-lg font-bold">
+                  Day {day.day_number}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {new Date(day.date).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </h3>
+                  {day.city && (
+                    <p className="text-sm text-[#9CA3AF] mt-1">
+                      <MapPin className="w-4 h-4 inline mr-1" />
+                      {day.city}
                     </p>
                   )}
                 </div>
-              ))
-            ) : (
-              <p style={{ color: '#999', fontStyle: 'italic' }}>
-                No activities planned for this day.
-              </p>
+              </div>
+
+              {/* Weather Badge */}
+              {day.weather_icon && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/30">
+                  <span className="text-2xl">{day.weather_icon}</span>
+                  <div className="text-sm">
+                    <div className="text-white font-semibold">
+                      {day.weather_temp_high}°C / {day.weather_temp_low}°C
+                    </div>
+                    {day.weather_condition && (
+                      <div className="text-[#9CA3AF] text-xs">{day.weather_condition}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {day.theme && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">🎯</span>
+                <h4 className="text-lg font-semibold text-[#38BDF8]">{day.theme}</h4>
+              </div>
+            )}
+
+            {day.description && (
+              <p className="text-[#E5E7EB] text-sm leading-relaxed">{day.description}</p>
             )}
           </div>
 
-          {/* Day Total Cost */}
+          {/* Activities Timeline */}
+          <div className="space-y-4 ml-2 border-l-2 border-[#38BDF8]/30 pl-6">
+            {day.activities && day.activities.length > 0 ? (
+              day.activities.map((activity, index) => (
+                <div key={activity.id} className="relative group">
+                  {/* Timeline Dot */}
+                  <div className="absolute -left-[1.69rem] top-2 w-3 h-3 rounded-full bg-[#38BDF8] border-4 border-[#111827] group-hover:scale-125 transition-transform" />
+
+                  <div className="p-4 rounded-xl bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)] hover:bg-[#1F2937]/70 transition-all">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h5 className="text-lg font-semibold text-white mb-2">
+                          {index + 1}. {activity.title}
+                        </h5>
+
+                        {/* Time, Duration, Category */}
+                        <div className="flex flex-wrap gap-3 text-sm text-[#9CA3AF]">
+                          {activity.start_time && (
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-4 h-4" />
+                              {activity.start_time}
+                            </div>
+                          )}
+                          {activity.duration_minutes && (
+                            <div className="flex items-center gap-1">
+                              ⏱️ {activity.duration_minutes} min
+                            </div>
+                          )}
+                          {activity.category && (
+                            <div className="px-2 py-1 rounded-full bg-[#38BDF8]/10 text-[#38BDF8] text-xs font-medium">
+                              {activity.category}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Cost Badge */}
+                      {activity.estimated_cost !== undefined && activity.estimated_cost > 0 && (
+                        <div className="px-3 py-1 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 text-[#22C55E] font-bold whitespace-nowrap ml-3">
+                          ${activity.estimated_cost}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Description */}
+                    {activity.description && (
+                      <p className="text-[#E5E7EB] text-sm mb-2 leading-relaxed">
+                        {activity.description}
+                      </p>
+                    )}
+
+                    {/* Location */}
+                    {activity.location && (
+                      <div className="flex items-center gap-1 text-sm text-[#9CA3AF] mt-2">
+                        <MapPin className="w-4 h-4" />
+                        {activity.location}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-[#6B7280] italic">No activities planned for this day.</p>
+            )}
+          </div>
+
+          {/* Day Total */}
           {day.activities && day.activities.length > 0 && (
-            <div style={{ 
-              marginTop: '1rem',
-              paddingTop: '1rem',
-              borderTop: '2px solid #f0f0f0',
-              textAlign: 'right'
-            }}>
-              <span style={{ fontSize: '1.1rem', color: '#666' }}>
-                Day Total: 
-              </span>
-              <span style={{ 
-                fontSize: '1.3rem', 
-                fontWeight: 'bold',
-                color: '#4CAF50',
-                marginLeft: '0.5rem'
-              }}>
+            <div className="mt-6 pt-4 border-t border-[rgba(148,163,184,0.2)] flex items-center justify-between">
+              <span className="text-[#9CA3AF]">Day Total</span>
+              <span className="text-2xl font-bold text-white">
                 ${day.activities.reduce((sum, act) => sum + (act.estimated_cost || 0), 0).toFixed(2)}
               </span>
             </div>
@@ -219,55 +163,66 @@ const ItineraryView = ({ trip }: ItineraryViewProps) => {
         </div>
       ))}
 
-      {/* Trip Summary */}
-      <div style={{
-        marginTop: '2rem',
-        padding: '1.5rem',
-        background: '#e8f5e9',
-        borderRadius: '12px',
-        border: '2px solid #4CAF50'
-      }}>
-        <h3 style={{ color: '#4CAF50', marginBottom: '1rem' }}>
-          💰 Trip Summary
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div>
-            <p style={{ color: '#666', marginBottom: '0.25rem' }}>Total Days:</p>
-            <p style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#333' }}>
-              {trip.days.length}
-            </p>
+      {/* Trip Summary Card */}
+      <div className="glass-card rounded-3xl p-6 border-[rgba(148,163,184,0.2)] bg-gradient-to-br from-[#22C55E]/10 to-[#38BDF8]/10">
+        <div className="flex items-center gap-2 mb-4">
+          <DollarSign className="w-6 h-6 text-[#22C55E]" />
+          <h3 className="text-xl font-bold text-white">Trip Summary</h3>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="text-center p-3 rounded-xl bg-[#1F2937]/50">
+            <div className="text-3xl font-bold text-[#38BDF8] mb-1">{trip.days.length}</div>
+            <div className="text-sm text-[#9CA3AF]">Days</div>
           </div>
-          <div>
-            <p style={{ color: '#666', marginBottom: '0.25rem' }}>Total Activities:</p>
-            <p style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#333' }}>
+
+          <div className="text-center p-3 rounded-xl bg-[#1F2937]/50">
+            <div className="text-3xl font-bold text-[#F97316] mb-1">
               {trip.days.reduce((sum, day) => sum + (day.activities?.length || 0), 0)}
-            </p>
+            </div>
+            <div className="text-sm text-[#9CA3AF]">Activities</div>
           </div>
-          <div>
-            <p style={{ color: '#666', marginBottom: '0.25rem' }}>Estimated Cost:</p>
-            <p style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#4CAF50' }}>
-              ${trip.days.reduce((sum, day) => 
-                sum + (day.activities?.reduce((daySum, act) => 
-                  daySum + (act.estimated_cost || 0), 0) || 0), 0
-              ).toFixed(2)}
-            </p>
+
+          <div className="text-center p-3 rounded-xl bg-[#1F2937]/50">
+            <div className="text-3xl font-bold text-[#22C55E] mb-1">
+              $
+              {trip.days
+                .reduce(
+                  (sum, day) =>
+                    sum + (day.activities?.reduce((daySum, act) => daySum + (act.estimated_cost || 0), 0) || 0),
+                  0
+                )
+                .toFixed(0)}
+            </div>
+            <div className="text-sm text-[#9CA3AF]">Total Cost</div>
           </div>
+
           {trip.budget && (
-            <div>
-              <p style={{ color: '#666', marginBottom: '0.25rem' }}>Budget Remaining:</p>
-              <p style={{ 
-                fontSize: '1.3rem', 
-                fontWeight: 'bold', 
-                color: trip.budget - trip.days.reduce((sum, day) => 
-                  sum + (day.activities?.reduce((daySum, act) => 
-                    daySum + (act.estimated_cost || 0), 0) || 0), 0
-                ) >= 0 ? '#4CAF50' : '#f44'
-              }}>
-                ${(trip.budget - trip.days.reduce((sum, day) => 
-                  sum + (day.activities?.reduce((daySum, act) => 
-                    daySum + (act.estimated_cost || 0), 0) || 0), 0
-                )).toFixed(2)}
-              </p>
+            <div className="text-center p-3 rounded-xl bg-[#1F2937]/50">
+              <div
+                className={`text-3xl font-bold mb-1 ${
+                  trip.budget -
+                    trip.days.reduce(
+                      (sum, day) =>
+                        sum + (day.activities?.reduce((daySum, act) => daySum + (act.estimated_cost || 0), 0) || 0),
+                      0
+                    ) >=
+                  0
+                    ? 'text-[#22C55E]'
+                    : 'text-[#EF4444]'
+                }`}
+              >
+                $
+                {(
+                  trip.budget -
+                  trip.days.reduce(
+                    (sum, day) =>
+                      sum + (day.activities?.reduce((daySum, act) => daySum + (act.estimated_cost || 0), 0) || 0),
+                    0
+                  )
+                ).toFixed(0)}
+              </div>
+              <div className="text-sm text-[#9CA3AF]">Remaining</div>
             </div>
           )}
         </div>

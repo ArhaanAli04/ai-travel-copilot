@@ -1,3 +1,4 @@
+import { Plane, Clock, X } from 'lucide-react';
 import { type Flight } from '../services/api';
 
 interface FlightSearchResultsProps {
@@ -15,161 +16,103 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
   };
 
   // Group flights by direction
-  const outboundFlights = flights.filter(f => 
-    f.flight_direction === 'outbound' || f.flight_direction === 'one_way'
+  const outboundFlights = flights.filter(
+    (f) => f.flight_direction === 'outbound' || f.flight_direction === 'one_way'
   );
-  const returnFlights = flights.filter(f => f.flight_direction === 'return');
+  const returnFlights = flights.filter((f) => f.flight_direction === 'return');
 
   const hasReturnFlights = returnFlights.length > 0;
 
   // Render individual flight card
   const renderFlightCard = (flight: Flight, index: number) => (
-    <div 
+    <div
       key={`${flight.flight_direction}-${index}`}
-      style={{ 
-        border: '1px solid #ddd',
-        borderRadius: '12px',
-        padding: '1.5rem',
-        background: 'white',
-        transition: 'box-shadow 0.3s',
-        cursor: 'pointer'
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
-      onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+      className="glass-card rounded-3xl p-6 border-[rgba(148,163,184,0.2)] hover:bg-[#1F2937]/70 transition-all group animate-fade-in"
+      style={{ animationDelay: `${index * 0.05}s` }}
     >
       {/* Airline Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+      <div className="flex justify-between items-start mb-4">
         <div>
-          <h4 style={{ margin: 0, fontSize: '1.2rem' }}>
+          <h4 className="text-xl font-bold text-white mb-1">
             {flight.airline} {flight.flight_number}
           </h4>
-          <p style={{ margin: '0.25rem 0', color: '#666', fontSize: '0.9rem' }}>
-            {flight.aircraft_type || 'Aircraft info not available'}
+          <p className="text-sm text-[#9CA3AF]">
+            {flight.aircraft_type || 'Boeing 737'}
           </p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4CAF50' }}>
+        <div className="text-right">
+          <div className="text-3xl font-bold text-[#22C55E]">
             ${flight.price_amount}
           </div>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>
-            {flight.price_currency}
-          </div>
+          <div className="text-sm text-[#9CA3AF]">{flight.price_currency}</div>
         </div>
       </div>
 
       {/* Flight Route */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '1fr auto 1fr', 
-        gap: '1rem',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        padding: '1rem',
-        background: '#f8f9fa',
-        borderRadius: '8px'
-      }}>
+      <div className="grid grid-cols-[1fr,auto,1fr] gap-4 items-center mb-4 p-4 bg-[#1F2937]/50 rounded-2xl">
         {/* Departure */}
         <div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-            {new Date(flight.departure_time).toLocaleTimeString('en-US', { 
-              hour: '2-digit', 
+          <div className="text-3xl font-bold text-white mb-1">
+            {new Date(flight.departure_time).toLocaleTimeString('en-US', {
+              hour: '2-digit',
               minute: '2-digit',
-              hour12: false 
+              hour12: false,
             })}
           </div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>
+          <div className="text-lg font-semibold text-[#38BDF8]">
             {flight.departure_airport}
           </div>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>
-            {flight.departure_city}
-          </div>
+          <div className="text-sm text-[#9CA3AF]">{flight.departure_city}</div>
         </div>
 
         {/* Duration & Stops */}
-        <div style={{ textAlign: 'center', minWidth: '120px' }}>
-          <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.25rem' }}>
+        <div className="text-center min-w-[140px]">
+          <div className="text-sm text-[#9CA3AF] mb-2">
             {formatDuration(flight.duration_minutes)}
           </div>
-          <div style={{ 
-            borderTop: '2px solid #2196F3',
-            position: 'relative',
-            margin: '0.5rem 0'
-          }}>
-            <span style={{ 
-              position: 'absolute',
-              top: '-10px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'white',
-              padding: '0 0.5rem',
-              fontSize: '0.75rem',
-              color: '#2196F3'
-            }}>
-              ✈️
-            </span>
+          <div className="relative">
+            <div className="h-0.5 bg-gradient-to-r from-[#38BDF8] to-[#0EA5E9] w-full" />
+            <Plane className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 text-[#38BDF8] bg-[#111827] px-1" />
           </div>
-          <div style={{ 
-            fontSize: '0.85rem', 
-            color: flight.stops === 0 ? '#4CAF50' : '#ff9800',
-            fontWeight: 'bold'
-          }}>
+          <div
+            className={`text-sm font-bold mt-2 ${
+              flight.stops === 0 ? 'text-[#22C55E]' : 'text-[#F97316]'
+            }`}
+          >
             {flight.stops === 0 ? 'Nonstop' : `${flight.stops} stop${flight.stops > 1 ? 's' : ''}`}
           </div>
         </div>
 
         {/* Arrival */}
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-            {new Date(flight.arrival_time).toLocaleTimeString('en-US', { 
-              hour: '2-digit', 
+        <div className="text-right">
+          <div className="text-3xl font-bold text-white mb-1">
+            {new Date(flight.arrival_time).toLocaleTimeString('en-US', {
+              hour: '2-digit',
               minute: '2-digit',
-              hour12: false 
+              hour12: false,
             })}
           </div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>
+          <div className="text-lg font-semibold text-[#38BDF8]">
             {flight.arrival_airport}
           </div>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>
-            {flight.arrival_city}
-          </div>
+          <div className="text-sm text-[#9CA3AF]">{flight.arrival_city}</div>
         </div>
       </div>
 
-      {/* Flight Details */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '1rem', 
-        flexWrap: 'wrap',
-        marginBottom: '1rem',
-        fontSize: '0.85rem'
-      }}>
-        <span style={{ 
-          padding: '0.25rem 0.75rem',
-          background: '#e3f2fd',
-          borderRadius: '12px',
-          color: '#1976d2'
-        }}>
+      {/* Flight Details Badges */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <span className="px-3 py-1 rounded-full bg-[#38BDF8]/10 text-[#38BDF8] text-sm font-medium border border-[#38BDF8]/30">
           {flight.cabin_class.charAt(0).toUpperCase() + flight.cabin_class.slice(1).replace('_', ' ')}
         </span>
         {flight.amenities?.map((amenity) => (
-          <span 
+          <span
             key={amenity}
-            style={{ 
-              padding: '0.25rem 0.75rem',
-              background: '#f0f0f0',
-              borderRadius: '12px',
-              color: '#666'
-            }}
+            className="px-3 py-1 rounded-full bg-[#1F2937]/50 text-[#9CA3AF] text-sm border border-[rgba(148,163,184,0.2)]"
           >
             {amenity}
           </span>
         ))}
-        <span style={{ 
-          padding: '0.25rem 0.75rem',
-          background: '#fff3e0',
-          borderRadius: '12px',
-          color: '#e65100'
-        }}>
+        <span className="px-3 py-1 rounded-full bg-[#F97316]/10 text-[#F97316] text-sm font-medium border border-[#F97316]/30">
           Source: {flight.source}
         </span>
       </div>
@@ -178,65 +121,63 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
       <button
         onClick={() => onSelectFlight(flight)}
         disabled={loading}
-        style={{ 
-          width: '100%',
-          padding: '0.75rem',
-          background: loading ? '#ccc' : '#4CAF50',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          fontWeight: 'bold',
-          fontSize: '1rem'
-        }}
+        className={`w-full py-4 rounded-2xl font-bold transition-all ${
+          loading
+            ? 'bg-[#1F2937] text-white/50 border-2 border-[#6B7280]/30 cursor-not-allowed'
+            : 'bg-transparent text-white border-2 border-[#38BDF8] hover:bg-[#38BDF8] hover:shadow-lg hover:shadow-[#38BDF8]/50 hover:scale-[1.02] active:scale-95'
+        }`}
       >
-        {loading ? 'Booking...' : '✅ Book This Flight'}
+        <span className="flex items-center justify-center gap-2">
+          {loading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Booking Flight...
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Book This Flight
+            </>
+          )}
+        </span>
       </button>
     </div>
   );
 
   return (
-    <div>
+    <div className="animate-fade-in">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h4 style={{ margin: 0 }}>
-          {hasReturnFlights 
-            ? `Found ${outboundFlights.length} outbound + ${returnFlights.length} return flights`
-            : `Found ${flights.length} flights`
-          }
-        </h4>
-        <button
-          onClick={onClose}
-          style={{ 
-            padding: '0.5rem 1rem',
-            background: '#666',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer'
-          }}
-        >
-          Close
-        </button>
+      <div className="glass-card rounded-3xl p-6 border-[rgba(148,163,184,0.2)] mb-6">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Plane className="w-6 h-6 text-[#38BDF8]" />
+            <h4 className="text-xl font-bold text-white">
+              {hasReturnFlights
+                ? `Found ${outboundFlights.length} outbound + ${returnFlights.length} return flights`
+                : `Found ${flights.length} flight${flights.length !== 1 ? 's' : ''}`}
+            </h4>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-[#6B7280] hover:bg-[#4B5563] text-white font-semibold transition-all flex items-center gap-2"
+          >
+            Close
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Outbound Flights Section */}
-      <div style={{ marginBottom: hasReturnFlights ? '2rem' : 0 }}>
+      <div className={hasReturnFlights ? 'mb-8' : ''}>
         {hasReturnFlights && (
-          <h3 style={{ 
-            fontSize: '1.2rem', 
-            marginBottom: '1rem',
-            color: '#2196F3',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            borderBottom: '2px solid #e3f2fd',
-            paddingBottom: '0.5rem'
-          }}>
-            ✈️ Outbound Flights
-          </h3>
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#38BDF8]/30">
+            <Plane className="w-5 h-5 text-[#38BDF8]" />
+            <h3 className="text-xl font-bold text-[#38BDF8]">Outbound Flights</h3>
+          </div>
         )}
-        <div style={{ display: 'grid', gap: '1rem' }}>
+        <div className="space-y-4">
           {outboundFlights.map((flight, index) => renderFlightCard(flight, index))}
         </div>
       </div>
@@ -244,19 +185,11 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
       {/* Return Flights Section */}
       {hasReturnFlights && (
         <div>
-          <h3 style={{ 
-            fontSize: '1.2rem', 
-            marginBottom: '1rem',
-            color: '#ff9800',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            borderBottom: '2px solid #fff3e0',
-            paddingBottom: '0.5rem'
-          }}>
-            🔙 Return Flights
-          </h3>
-          <div style={{ display: 'grid', gap: '1rem' }}>
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#F97316]/30">
+            <Plane className="w-5 h-5 text-[#F97316] rotate-180" />
+            <h3 className="text-xl font-bold text-[#F97316]">Return Flights</h3>
+          </div>
+          <div className="space-y-4">
             {returnFlights.map((flight, index) => renderFlightCard(flight, index))}
           </div>
         </div>
@@ -264,15 +197,10 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
 
       {/* No Results */}
       {flights.length === 0 && (
-        <div style={{
-          padding: '2rem',
-          textAlign: 'center',
-          color: '#666',
-          background: '#f8f9fa',
-          borderRadius: '12px'
-        }}>
-          <p style={{ fontSize: '1.2rem', margin: 0 }}>No flights found</p>
-          <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Try adjusting your search criteria</p>
+        <div className="glass-card rounded-3xl p-12 border-[rgba(148,163,184,0.2)] text-center">
+          <Plane className="w-16 h-16 text-[#6B7280] mx-auto mb-4" />
+          <p className="text-xl text-white font-semibold mb-2">No flights found</p>
+          <p className="text-[#9CA3AF]">Try adjusting your search criteria</p>
         </div>
       )}
     </div>

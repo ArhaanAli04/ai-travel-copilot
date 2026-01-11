@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState , useEffect } from 'react';
 import { tripApi, type Trip, type TripCreate } from '../services/api';
 import { Navigation } from '../components/Navigation';
 import { Hero } from '../components/Hero';
 import { TripFormV2 } from '../components/TripFormV2';
 import { TripSummaryV2 } from '../components/TripSummaryV2';
+import TripsSidebar from '../components/TripsSidebar';
 
 const Planner = () => {
   // Form state
@@ -32,7 +33,15 @@ const Planner = () => {
   const [destinationCodes, setDestinationCodes] = useState<string[]>(['']);
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
   const [itineraryGenerated, setItineraryGenerated] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState<number | undefined>(undefined);
+  const [refreshSidebar, setRefreshSidebar] = useState(0);
 
+  // Sync selectedTripId with createdTrip
+  useEffect(() => {
+    if (createdTrip) {
+      setSelectedTripId(createdTrip.id);
+    }
+  }, [createdTrip]);
   // Create trip
   const handleTripCreate = async (data: TripCreate) => {
     setLoading(true);
@@ -43,6 +52,7 @@ const Planner = () => {
       const trip = await tripApi.createTrip(data);
       setCreatedTrip(trip);
       setItineraryGenerated(false);
+      setRefreshSidebar(prev => prev + 1);
       console.log('✅ Trip created:', trip);
     } catch (err: any) {
       console.error('❌ Error creating trip:', err);
@@ -96,6 +106,7 @@ const Planner = () => {
     setItineraryGenerated(false);
     setOriginCode('');
     setDestinationCodes(['']);
+    setSelectedTripId(undefined);
   };
 
   // Refresh trip data
@@ -115,8 +126,62 @@ const Planner = () => {
     }
   };
 
+  const handleSelectTrip = async (tripId: number) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Loading trip:', tripId);
+      const trip = await tripApi.getTrip(tripId);
+      setCreatedTrip(trip);
+      setSelectedTripId(tripId);
+      
+      // Check if itinerary was already generated
+      setItineraryGenerated(trip.days && trip.days.length > 0);
+      
+      console.log('✅ Trip loaded:', trip);
+    } catch (err: any) {
+      console.error('❌ Error loading trip:', err);
+      setError(err.response?.data?.detail || 'Failed to load trip');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTrip = async (tripId: number) => {
+    if (!confirm('Are you sure you want to delete this trip?')) return;
+    
+    setLoading(true);
+    try {
+      console.log('Deleting trip:', tripId);
+      await tripApi.deleteTrip(tripId);
+      
+      // If deleted trip was currently selected, reset state
+      if (selectedTripId === tripId) {
+        setCreatedTrip(null);
+        setSelectedTripId(undefined);
+        setItineraryGenerated(false);
+      }
+      
+      console.log('✅ Trip deleted');
+    } catch (err: any) {
+      console.error('❌ Error deleting trip:', err);
+      setError(err.response?.data?.detail || 'Failed to delete trip');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen bg-gradient-to-b from-[#05070a] to-[#0b1120]">
+    {/* Trips Sidebar */}
+    <TripsSidebar
+      currentTripId={selectedTripId}
+      onSelectTrip={handleSelectTrip}
+      onDeleteTrip={handleDeleteTrip}
+      refreshTrigger={refreshSidebar} 
+    />
+    <div className="ml-20 transition-all duration-300">
       <Navigation />
       <Hero />
 
@@ -154,6 +219,7 @@ const Planner = () => {
           />
         )}
       </main>
+    </div>
     </div>
   );
 };
