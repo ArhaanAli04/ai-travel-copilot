@@ -36,6 +36,11 @@ class Activity(Base):
     source_refs = Column(JSON, nullable=True)  # References to guide chunks used
     ai_reasoning = Column(Text, nullable=True)  # Why this was recommended
     
+    explanation_cache = Column(Text, nullable=True)  # Cached explanation text
+    explanation_generated_at = Column(
+        Integer, nullable=True
+    )  # Timestamp when explanation was generated (Unix timestamp)
+    
     # Status
     is_booked = Column(Boolean, default=False)
     booking_url = Column(String, nullable=True)

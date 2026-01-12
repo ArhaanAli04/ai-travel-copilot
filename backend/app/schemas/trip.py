@@ -10,6 +10,8 @@ class ActivityExplanationResponse(BaseModel):
     explanation: str
     sources: List[dict] = []
     has_sources: bool
+    cached: bool = False  #  Indicates if from cache
+    generated_at: Optional[int] = None  #  Unix timestamp
     
     class Config:
         from_attributes = True

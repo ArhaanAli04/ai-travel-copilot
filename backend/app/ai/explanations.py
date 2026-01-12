@@ -1,10 +1,12 @@
 """
 Activity Explanations - Generate "Why this?" justifications
 Uses Qdrant retrieval + Gemini to explain activity recommendations
+WITH CACHING for better performance
 """
 from typing import Optional
 from sqlalchemy.orm import Session
 import logging
+import time
 from google import genai
 from google.genai import types
 
@@ -15,26 +17,37 @@ from app.core.qdrant import get_qdrant_client, get_collection_name
 logger = logging.getLogger(__name__)
 
 
+# Cache validity period (7 days in seconds)
+CACHE_VALIDITY_SECONDS = 7 * 24 * 60 * 60
+
+
 class ActivityExplainer:
     """
     Generate explanations for why activities were recommended
+    WITH CACHING to improve performance and reduce API costs
     """
     
     def __init__(self):
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        self.model_name = "gemini-2.5-flash-lite"
+        self.model_name = "gemini-2.0-flash-lite"
         self.config = types.GenerateContentConfig(
             temperature=0.7,
             max_output_tokens=300,  # Short explanations
         )
     
-    async def explain_activity(self, activity_id: int, db: Session) -> dict:
+    async def explain_activity(
+        self, 
+        activity_id: int, 
+        db: Session,
+        force_refresh: bool = False
+    ) -> dict:
         """
-        Generate explanation for an activity
+        Generate explanation for an activity (with caching)
         
         Args:
             activity_id: ID of the activity
             db: Database session
+            force_refresh: Force regeneration even if cached
             
         Returns:
             Dict with explanation and source info
@@ -46,36 +59,85 @@ class ActivityExplainer:
             if not activity:
                 raise ValueError(f"Activity {activity_id} not found")
             
+            # ✅ Check if we have a valid cached explanation
+            if not force_refresh and self._has_valid_cache(activity):
+                logger.info(f"🎯 Using cached explanation for activity {activity_id}")
+                return {
+                    "explanation": activity.explanation_cache,
+                    "sources": activity.source_refs.get("sources", []) if activity.source_refs else [],
+                    "has_sources": bool(activity.source_refs),
+                    "cached": True,
+                    "generated_at": activity.explanation_generated_at
+                }
+            
+            # No valid cache - generate new explanation
+            logger.info(f"🔄 Generating new explanation for activity {activity_id}")
+            
             # Get source references
             source_refs = activity.source_refs or {}
             sources = source_refs.get("sources", [])
             
             if not sources:
                 # Fallback if no sources stored
-                return {
-                    "explanation": self._generate_fallback_explanation(activity),
-                    "sources": [],
-                    "has_sources": False
-                }
+                explanation = self._generate_fallback_explanation(activity)
+                has_sources = False
+            else:
+                # Build context from sources
+                context = self._build_context_from_sources(sources)
+                
+                # Generate explanation using Gemini
+                explanation = await self._generate_explanation_with_llm(
+                    activity=activity,
+                    context=context
+                )
+                has_sources = True
             
-            # Build context from sources
-            context = self._build_context_from_sources(sources)
+            # ✅ Cache the explanation in database
+            activity.explanation_cache = explanation
+            activity.explanation_generated_at = int(time.time())
+            db.commit()
             
-            # Generate explanation using Gemini
-            explanation = await self._generate_explanation_with_llm(
-                activity=activity,
-                context=context
-            )
+            logger.info(f"✅ Cached explanation for activity {activity_id}")
             
             return {
                 "explanation": explanation,
                 "sources": sources,
-                "has_sources": True
+                "has_sources": has_sources,
+                "cached": False,
+                "generated_at": activity.explanation_generated_at
             }
             
         except Exception as e:
             logger.error(f"❌ Explanation generation failed: {e}")
             raise
+    
+    def _has_valid_cache(self, activity: Activity) -> bool:
+        """
+        Check if activity has a valid cached explanation
+        
+        Args:
+            activity: Activity object
+            
+        Returns:
+            True if cache is valid, False otherwise
+        """
+        # Check if cache exists
+        if not activity.explanation_cache:
+            return False
+        
+        # Check if cache timestamp exists
+        if not activity.explanation_generated_at:
+            return False
+        
+        # Check if cache is still valid (not too old)
+        current_time = int(time.time())
+        cache_age = current_time - activity.explanation_generated_at
+        
+        if cache_age > CACHE_VALIDITY_SECONDS:
+            logger.info(f"⏰ Cache expired for activity {activity.id} (age: {cache_age}s)")
+            return False
+        
+        return True
     
     def _build_context_from_sources(self, sources: list) -> str:
         """Build context string from source references"""
@@ -179,16 +241,21 @@ def get_activity_explainer() -> ActivityExplainer:
     return _explainer_instance
 
 
-async def explain_activity(activity_id: int, db: Session) -> dict:
+async def explain_activity(
+    activity_id: int, 
+    db: Session,
+    force_refresh: bool = False
+) -> dict:
     """
-    Convenience function to explain an activity
+    Convenience function to explain an activity (with caching)
     
     Args:
         activity_id: ID of the activity
         db: Database session
+        force_refresh: Force regeneration even if cached
         
     Returns:
         Dict with explanation and source info
     """
     explainer = get_activity_explainer()
-    return await explainer.explain_activity(activity_id, db)
+    return await explainer.explain_activity(activity_id, db, force_refresh)

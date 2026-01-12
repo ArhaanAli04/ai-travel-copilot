@@ -227,27 +227,39 @@ async def generate_itinerary(trip_id: int, db: Session = Depends(get_db)):
 @router.get("/activities/{activity_id}/explain")
 async def explain_activity_choice(
     activity_id: int,
+    force_refresh: bool = Query(False, description="Force regenerate explanation"),
     db: Session = Depends(get_db)
 ):
     """
     Explain why an activity was recommended
     
+    **Caching:**
+    - Explanations are cached for 7 days
+    - Use force_refresh=true to regenerate
+
     **What it does:**
-    1. Retrieves activity and its source references
-    2. Uses travel guide context to generate explanation
-    3. Returns 2-4 sentence justification with sources
+    1. Checks for cached explanation
+    2. If cache valid, returns immediately
+    3. Otherwise generates new explanation via Gemini
+    4. Caches result for future requests
     
     **Returns:**
     - explanation: 2-4 sentence explanation
     - sources: List of travel guide sources used
     - has_sources: Whether source references were available
+    - cached: Whether this response came from cache
+    - generated_at: Unix timestamp of generation
     """
     try:
         from app.ai.explanations import explain_activity
         
-        result = await explain_activity(activity_id, db)
+        result = await explain_activity(activity_id, db,force_refresh)
         
-        logger.info(f"✅ Generated explanation for activity {activity_id}")
+        if result.get("cached"):
+            logger.info(f"⚡ Returned cached explanation for activity {activity_id}")
+        else:
+            logger.info(f"✅ Generated new explanation for activity {activity_id}")
+        
         return result
         
     except ValueError as e:
@@ -258,3 +270,4 @@ async def explain_activity_choice(
             status_code=500,
             detail=f"Failed to generate explanation: {str(e)}"
         )
+
