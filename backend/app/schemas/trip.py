@@ -3,6 +3,17 @@ from typing import Optional, List
 from datetime import datetime, date
 from datetime import time as Time
 from app.schemas.flight import FlightResponse
+
+# Add this after the imports
+class ActivityExplanationResponse(BaseModel):
+    """Response for activity explanation"""
+    explanation: str
+    sources: List[dict] = []
+    has_sources: bool
+    
+    class Config:
+        from_attributes = True
+
 # Activity Schemas
 class ActivityBase(BaseModel):
     title: str

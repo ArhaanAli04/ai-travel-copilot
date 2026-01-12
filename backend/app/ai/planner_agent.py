@@ -192,7 +192,7 @@ class PlannerAgent:
             weather_data = self._get_day_weather(weather_forecast, date)
             
             # Fetch relevant travel guide content
-            guide_context = await self._fetch_guide_context(
+            guide_context,guide_documents = await self._fetch_guide_context(
                 city=city,
                 interests=trip.interests or []
             )
@@ -253,7 +253,8 @@ class PlannerAgent:
                 activity = self._create_activity(
                     trip_day_id=trip_day.id,
                     order=idx,
-                    activity_data=activity_data
+                    activity_data=activity_data,
+                    guide_documents=guide_documents
                 )
                 self.db.add(activity)
             
@@ -292,8 +293,11 @@ class PlannerAgent:
             "precipitation_prob": day_weather.precipitation_probability
         }
     
-    async def _fetch_guide_context(self, city: str, interests: List[str]) -> str:
-        """Fetch relevant travel guide content"""
+    async def _fetch_guide_context(self, city: str, interests: List[str]) -> tuple[str,List]:
+        """Fetch relevant travel guide content
+            Returns:
+        Tuple of (formatted_context_string, list_of_documents)
+        """
         try:
             # Map interests to themes
             theme_map = {
@@ -324,7 +328,7 @@ class PlannerAgent:
             # Format into context string
             context = format_guide_context(documents)
             
-            return context
+            return context,documents
             
         except Exception as e:
             logger.warning(f"⚠️ Guide context fetch failed: {e}")
@@ -359,9 +363,16 @@ class PlannerAgent:
         self,
         trip_day_id: int,
         order: int,
-        activity_data: Dict
+        activity_data: Dict,
+        guide_documents: List = None
     ) -> Activity:
-        """Create Activity record from parsed data"""
+        """Create Activity record from parsed data
+           Args:
+        trip_day_id: ID of the trip day
+        order: Activity order in the day
+        activity_data: Parsed activity data from Gemini
+        guide_documents: List of guide documents used for this day's planning
+        """
         
         # Parse start time
         start_time_str = activity_data.get("start_time", "09:00")
@@ -379,6 +390,23 @@ class PlannerAgent:
             end_dt = start_dt + timedelta(minutes=duration)
             end_time = end_dt.time()
         
+        source_refs = None
+        if guide_documents:
+            source_refs = {
+                "sources": [
+                    {
+                        "city": doc.metadata.get("city"),
+                        "theme": doc.metadata.get("theme"),
+                        "source_url": doc.metadata.get("source_url"),
+                        "source_title": doc.metadata.get("source_title"),
+                        "relevance_score": doc.metadata.get("relevance_score"),
+                        "content_snippet": doc.page_content[:200]  # First 200 chars
+                    }
+                    for doc in guide_documents[:3]  # Top 3 most relevant
+                ],
+                "query_city": guide_documents[0].metadata.get("city") if guide_documents else None
+            }
+
         return Activity(
             trip_day_id=trip_day_id,
             title=activity_data.get("title", "Untitled Activity"),
@@ -391,6 +419,7 @@ class PlannerAgent:
             location=activity_data.get("location"),
             estimated_cost=activity_data.get("estimated_cost", 0.0),
             cost_currency="USD",
+            source_refs=source_refs,
             ai_reasoning=activity_data.get("reasoning"),
             is_booked=False
         )

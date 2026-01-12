@@ -223,3 +223,38 @@ async def generate_itinerary(trip_id: int, db: Session = Depends(get_db)):
             status_code=500,
             detail=f"Failed to generate itinerary: {str(e)}"
         )
+
+@router.get("/activities/{activity_id}/explain")
+async def explain_activity_choice(
+    activity_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Explain why an activity was recommended
+    
+    **What it does:**
+    1. Retrieves activity and its source references
+    2. Uses travel guide context to generate explanation
+    3. Returns 2-4 sentence justification with sources
+    
+    **Returns:**
+    - explanation: 2-4 sentence explanation
+    - sources: List of travel guide sources used
+    - has_sources: Whether source references were available
+    """
+    try:
+        from app.ai.explanations import explain_activity
+        
+        result = await explain_activity(activity_id, db)
+        
+        logger.info(f"✅ Generated explanation for activity {activity_id}")
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"❌ Explanation generation failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate explanation: {str(e)}"
+        )
