@@ -1,7 +1,10 @@
-import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2 } from 'lucide-react';
 import type { Trip } from '../services/api';
 import FlightSection from './FlightSection';
 import ItineraryView from './ItineraryView';
+import { EditTripModal } from './EditTripModal';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 
 interface TripSummaryV2Props {
   trip: Trip;
@@ -10,6 +13,8 @@ interface TripSummaryV2Props {
   onGenerateItinerary: () => void;
   onCreateAnother: () => void;
   onRefreshTrip: () => void;
+  onUpdateTrip: (updates: Partial<Trip>) => Promise<void>;
+  onDeleteTrip: () => Promise<void>;
   loading: boolean;
   originCode: string;
   destinationCodes: string[];
@@ -22,13 +27,44 @@ export function TripSummaryV2({
   onGenerateItinerary,
   onCreateAnother,
   onRefreshTrip,
+  onUpdateTrip,
+  onDeleteTrip,
   loading,
   originCode,
   destinationCodes,
 }: TripSummaryV2Props) {
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleUpdateTrip = async (updates: Partial<Trip>) => {
+    setEditLoading(true);
+    try {
+      await onUpdateTrip(updates);
+      setShowEditModal(false);
+    } catch (error) {
+      console.error('Failed to update trip:', error);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteTrip = async () => {
+    setDeleteLoading(true);
+    try {
+      await onDeleteTrip();
+      setShowDeleteModal(false);
+    } catch (error) {
+      console.error('Failed to delete trip:', error);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
-      {/* Success Banner */}
+      {/* Success Banner with Edit/Delete buttons */}
       <div className="glass-card rounded-3xl p-6 border-[#22C55E]/30 bg-gradient-to-r from-[#22C55E]/10 to-[#38BDF8]/10">
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -57,8 +93,30 @@ export function TripSummaryV2({
               )}
             </div>
           </div>
-          <div className="px-3 py-1 rounded-full bg-[#22C55E] text-white text-sm font-semibold shadow-lg shadow-[#22C55E]/30">
-            {trip.status === 'planned' ? 'Planned' : 'Created'}
+          
+          {/* Status Badge & Action Buttons */}
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1 rounded-full bg-[#22C55E] text-white text-sm font-semibold shadow-lg shadow-[#22C55E]/30">
+              {trip.status === 'planned' ? 'Planned' : 'Created'}
+            </div>
+            
+            {/* Edit Button */}
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-[rgba(148,163,184,0.2)] hover:border-[#60A5FA]/50 transition-all group"
+              title="Edit Trip"
+            >
+              <Edit2 className="w-4 h-4 text-gray-400 group-hover:text-[#60A5FA] transition-colors" />
+            </button>
+            
+            {/* Delete Button */}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="p-2.5 rounded-lg bg-white/5 hover:bg-[#EF4444]/10 border border-[rgba(148,163,184,0.2)] hover:border-[#EF4444]/50 transition-all group"
+              title="Delete Trip"
+            >
+              <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-[#EF4444] transition-colors" />
+            </button>
           </div>
         </div>
       </div>
@@ -106,12 +164,15 @@ export function TripSummaryV2({
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Use your existing ItineraryView component */}
-          <ItineraryView trip={trip} />
+          {/* Use your existing ItineraryView component - we'll update this next */}
+          <ItineraryView 
+            trip={trip}
+            onTripUpdate={onRefreshTrip}
+          />
         </div>
       )}
 
-      {/* Flight Search Section - Use your existing component */}
+      {/* Flight Search Section */}
       {trip.include_flights && (
         <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <FlightSection
@@ -154,6 +215,24 @@ export function TripSummaryV2({
           Create Another Trip
         </button>
       </div>
+
+      {/* Modals */}
+      <EditTripModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleUpdateTrip}
+        trip={trip}
+        loading={editLoading}
+      />
+
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteTrip}
+        title="Delete Trip"
+        message={`Are you sure you want to delete "${trip.title}"? This action cannot be undone. All days, activities, and flights will be permanently deleted.`}
+        loading={deleteLoading}
+      />
     </div>
   );
 }

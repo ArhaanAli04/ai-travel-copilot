@@ -51,6 +51,51 @@ class ActivityResponse(ActivityBase):
             Time: lambda v: v.strftime("%H:%M") if v else None
         }
 
+class ActivityReorderRequest(BaseModel):
+    """Request to reorder activities within a day"""
+    activity_ids: List[int] = Field(
+        ..., 
+        description="List of activity IDs in desired order",
+        min_length=1
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "activity_ids": [147, 148, 149, 150]
+            }
+        }
+
+
+# NEW: Schema for re-planning a day
+class DayReplanRequest(BaseModel):
+    """Request to re-plan a specific day with new preferences"""
+    additional_preferences: str = Field(
+        ..., 
+        description="Additional preferences or constraints for this day",
+        min_length=1,
+        max_length=1000
+    )
+    keep_existing_activities: bool = Field(
+        default=False,
+        description="Whether to keep existing activities and add new ones, or replace all"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "additional_preferences": "I want more outdoor activities and less museums. Add a sunset spot.",
+                "keep_existing_activities": False
+            }
+        }
+
+
+# NEW: Response for activity deletion
+class ActivityDeleteResponse(BaseModel):
+    """Response after deleting an activity"""
+    message: str
+    deleted_activity_id: int
+    remaining_activities_count: int
 
 # TripDay Schemas
 class TripDayBase(BaseModel):

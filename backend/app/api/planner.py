@@ -6,7 +6,8 @@ from app.models.trip import Trip
 from app.models.trip_day import TripDay
 from app.models.activity import Activity
 from app.schemas.trip import (
-    TripCreate, TripUpdate, TripResponse, TripListResponse
+    TripCreate, TripUpdate, TripResponse, TripListResponse,
+    ActivityReorderRequest, DayReplanRequest, ActivityDeleteResponse 
 )
 import logging
 from app.ai.planner_agent import create_planner_agent
@@ -101,6 +102,8 @@ async def get_trip(trip_id: int, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
         
         logger.info(f"📖 Retrieved trip {trip_id}")
+        for day in trip.days:
+            day.activities = sorted(day.activities, key=lambda x: x.order)
         return trip
         
     except HTTPException:
@@ -271,3 +274,319 @@ async def explain_activity_choice(
             detail=f"Failed to generate explanation: {str(e)}"
         )
 
+
+@router.delete("/activities/{activity_id}", response_model=ActivityDeleteResponse)
+async def delete_activity(
+    activity_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a specific activity from a day
+    
+    **What it does:**
+    1. Finds the activity by ID
+    2. Deletes it from database
+    3. Re-orders remaining activities in the day
+    
+    **Returns:**
+    - Confirmation message
+    - Deleted activity ID
+    - Count of remaining activities in that day
+    """
+    try:
+        # Get activity
+        activity = db.query(Activity).filter(Activity.id == activity_id).first()
+        
+        if not activity:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        
+        trip_day_id = activity.trip_day_id
+        deleted_order = activity.order
+        
+        # Delete activity
+        db.delete(activity)
+        db.flush()
+        
+        # Re-order remaining activities in the day
+        remaining_activities = db.query(Activity).filter(
+            Activity.trip_day_id == trip_day_id,
+            Activity.order > deleted_order
+        ).all()
+        
+        for act in remaining_activities:
+            act.order -= 1
+        
+        db.commit()
+        
+        # Count remaining activities
+        remaining_count = db.query(Activity).filter(
+            Activity.trip_day_id == trip_day_id
+        ).count()
+        
+        logger.info(f"🗑️ Deleted activity {activity_id}, {remaining_count} activities remaining")
+        
+        return {
+            "message": "Activity deleted successfully",
+            "deleted_activity_id": activity_id,
+            "remaining_activities_count": remaining_count
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to delete activity {activity_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete activity: {str(e)}"
+        )
+
+
+@router.post("/{trip_id}/days/{day_id}/reorder", response_model=dict)
+async def reorder_activities(
+    trip_id: int,
+    day_id: int,
+    reorder_request: ActivityReorderRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Reorder activities within a specific day
+    
+    **What it does:**
+    1. Validates all activity IDs belong to the specified day
+    2. Updates the order field for each activity
+    3. Returns updated day with reordered activities
+    
+    **Request body:**
+    - activity_ids: List of activity IDs in desired order
+    
+    **Returns:**
+    - Success message
+    - Updated activities in new order
+    """
+    try:
+        # Verify trip exists
+        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        if not trip:
+            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        
+        # Verify day exists and belongs to trip
+        day = db.query(TripDay).filter(
+            TripDay.id == day_id,
+            TripDay.trip_id == trip_id
+        ).first()
+        
+        if not day:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Day {day_id} not found in trip {trip_id}"
+            )
+        
+        # Get all activities for this day
+        activities = db.query(Activity).filter(
+            Activity.trip_day_id == day_id
+        ).all()
+        
+        # Validate activity IDs
+        activity_ids_in_day = {act.id for act in activities}
+        requested_ids = set(reorder_request.activity_ids)
+        
+        if requested_ids != activity_ids_in_day:
+            missing = activity_ids_in_day - requested_ids
+            extra = requested_ids - activity_ids_in_day
+            error_msg = []
+            if missing:
+                error_msg.append(f"Missing activity IDs: {missing}")
+            if extra:
+                error_msg.append(f"Invalid activity IDs (not in this day): {extra}")
+            raise HTTPException(
+                status_code=400,
+                detail="; ".join(error_msg)
+            )
+        
+        # Update order for each activity
+        activity_map = {act.id: act for act in activities}
+        
+        for new_order, activity_id in enumerate(reorder_request.activity_ids, start=1):
+            activity_map[activity_id].order = new_order
+        
+        db.commit()
+        
+        # Refresh activities to get updated order
+        for act in activities:
+            db.refresh(act)
+        
+        # Sort by new order
+        sorted_activities = sorted(activities, key=lambda x: x.order)
+        
+        logger.info(f"🔄 Reordered {len(activities)} activities in day {day_id}")
+        
+        return {
+            "message": "Activities reordered successfully",
+            "day_id": day_id,
+            "activities_count": len(activities),
+            "new_order": [act.id for act in sorted_activities]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to reorder activities: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reorder activities: {str(e)}"
+        )
+
+
+@router.post("/{trip_id}/days/{day_id}/replan", response_model=TripResponse)
+async def replan_day(
+    trip_id: int,
+    day_id: int,
+    replan_request: DayReplanRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Re-plan a specific day with new preferences
+    
+    **What it does:**
+    1. Loads existing day and trip details
+    2. Combines original preferences with new ones
+    3. Deletes existing activities (unless keep_existing_activities=true)
+    4. Generates new activities using AI with updated preferences
+    5. Returns updated trip
+    
+    **Request body:**
+    - additional_preferences: New constraints/preferences for this day
+    - keep_existing_activities: If true, adds to existing; if false, replaces all
+    
+    **Returns:**
+    - Complete updated trip with re-planned day
+    """
+    try:
+        # Verify trip exists
+        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        if not trip:
+            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        
+        # Verify day exists and belongs to trip
+        day = db.query(TripDay).filter(
+            TripDay.id == day_id,
+            TripDay.trip_id == trip_id
+        ).first()
+        
+        if not day:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Day {day_id} not found in trip {trip_id}"
+            )
+        
+        # Delete existing activities if not keeping them
+        if not replan_request.keep_existing_activities:
+            logger.info(f"🗑️ Deleting existing activities for day {day_id}")
+            db.query(Activity).filter(Activity.trip_day_id == day_id).delete()
+            db.commit()
+        
+        # Create planner agent
+        planner = create_planner_agent(db)
+        
+        # Fetch weather for this specific day
+        weather_forecast = await planner._fetch_weather(trip)
+        weather_data = planner._get_day_weather(weather_forecast, day.date)
+        
+        # Calculate budget
+        budget_per_day = planner._calculate_daily_budget(trip)
+        
+        # Merge preferences
+        original_prefs = trip.preferences or {}
+        merged_preferences = {
+            **original_prefs,
+            "day_specific": replan_request.additional_preferences
+        }
+        
+        # Fetch guide context
+        guide_context, guide_documents = await planner._fetch_guide_context(
+            city=day.city,
+            interests=trip.interests or []
+        )
+        
+        # Create prompt with additional preferences
+        from app.ai.prompts import create_day_planning_prompt
+        
+        user_prompt = create_day_planning_prompt(
+            day_number=day.day_number,
+            date_str=day.date.isoformat(),
+            city=day.city,
+            weather=weather_data,
+            budget_per_day=budget_per_day,
+            interests=trip.interests or [],
+            preferences=merged_preferences,
+            guide_context=guide_context,
+            trip_type=trip.trip_type,
+            traveler_count=trip.traveler_count
+        )
+        
+        # Add additional preferences to prompt
+        user_prompt += f"\n\n**IMPORTANT - Additional preferences for this day:**\n{replan_request.additional_preferences}"
+        
+        # Combine with system prompt
+        from app.ai.prompts import ITINERARY_SYSTEM_PROMPT
+        full_prompt = f"{ITINERARY_SYSTEM_PROMPT}\n\n{user_prompt}"
+        
+        # Call Gemini
+        logger.info(f"🤖 Re-planning Day {day.day_number} with new preferences...")
+        response = planner.client.models.generate_content(
+            model=planner.model_name,
+            contents=full_prompt,
+            config=planner.config
+        )
+        
+        # Parse response
+        day_plan = planner._parse_gemini_response(response.text)
+        
+        if not day_plan:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to parse AI response"
+            )
+        
+        # Update day metadata
+        day.theme = day_plan.get("day_theme", day.theme)
+        day.description = day_plan.get("day_description", day.description)
+        
+        # Get starting order (if keeping existing activities)
+        starting_order = 1
+        if replan_request.keep_existing_activities:
+            max_order = db.query(Activity).filter(
+                Activity.trip_day_id == day_id
+            ).count()
+            starting_order = max_order + 1
+        
+        # Create new activities
+        activities = day_plan.get("activities", [])
+        for idx, activity_data in enumerate(activities, start=starting_order):
+            activity = planner._create_activity(
+                trip_day_id=day.id,
+                order=idx,
+                activity_data=activity_data,
+                guide_documents=guide_documents
+            )
+            db.add(activity)
+        
+        db.commit()
+        
+        logger.info(f"✅ Re-planned day {day_id} with {len(activities)} activities")
+        
+        # Refresh trip to load all relationships
+        db.refresh(trip)
+        return trip
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to re-plan day: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to re-plan day: {str(e)}"
+        )

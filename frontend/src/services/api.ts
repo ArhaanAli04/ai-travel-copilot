@@ -216,4 +216,59 @@ export const airportApi = {
   },
 };
 
+// Activity explanation response
+export interface ActivityExplanation {
+  explanation: string;
+  sources: Array<{
+    city: string;
+    theme: string;
+    source_url: string;
+    source_title: string;
+    relevance_score: number;
+    content_snippet: string;
+  }>;
+  has_sources: boolean;
+  cached: boolean;
+  generated_at?: number;
+}
+
+// Activity management API
+export const activityApi = {
+  // Get explanation for an activity
+  explainActivity: async (activityId: number, forceRefresh = false): Promise<ActivityExplanation> => {
+    const response = await api.get(`/trips/activities/${activityId}/explain`, {
+      params: { force_refresh: forceRefresh }
+    });
+    return response.data;
+  },
+
+  // Delete an activity
+  deleteActivity: async (activityId: number): Promise<void> => {
+    await api.delete(`/trips/activities/${activityId}`);
+  },
+
+  // Reorder activities within a day
+  reorderActivities: async (tripId: number, dayId: number, activityIds: number[]): Promise<void> => {
+    await api.post(`/trips/${tripId}/days/${dayId}/reorder`, {
+      activity_ids: activityIds
+    });
+  },
+};
+
+// Day re-planning API
+export const dayApi = {
+  // Re-plan a specific day
+  replanDay: async (
+    tripId: number,
+    dayId: number,
+    additionalPreferences: string,
+    keepExistingActivities = false
+  ): Promise<Trip> => {
+    const response = await api.post(`/trips/${tripId}/days/${dayId}/replan`, {
+      additional_preferences: additionalPreferences,
+      keep_existing_activities: keepExistingActivities
+    });
+    return response.data;
+  },
+};
 export default api;

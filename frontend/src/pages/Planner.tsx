@@ -1,4 +1,4 @@
-import { useState , useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { tripApi, type Trip, type TripCreate } from '../services/api';
 import { Navigation } from '../components/Navigation';
 import { Hero } from '../components/Hero';
@@ -42,6 +42,7 @@ const Planner = () => {
       setSelectedTripId(createdTrip.id);
     }
   }, [createdTrip]);
+
   // Create trip
   const handleTripCreate = async (data: TripCreate) => {
     setLoading(true);
@@ -80,6 +81,55 @@ const Planner = () => {
       setError(err.response?.data?.detail || 'Failed to generate itinerary');
     } finally {
       setGeneratingItinerary(false);
+    }
+  };
+
+  // Update trip
+  const handleUpdateTrip = async (updates: Partial<Trip>) => {
+    if (!createdTrip) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('✏️ Updating trip:', updates);
+      const updatedTrip = await tripApi.updateTrip(createdTrip.id, updates);
+      setCreatedTrip(updatedTrip);
+      setRefreshSidebar(prev => prev + 1);
+      console.log('✅ Trip updated:', updatedTrip);
+    } catch (err: any) {
+      console.error('❌ Error updating trip:', err);
+      setError(err.response?.data?.detail || 'Failed to update trip');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete current trip
+  const handleDeleteCurrentTrip = async () => {
+    if (!createdTrip) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('🗑️ Deleting trip:', createdTrip.id);
+      await tripApi.deleteTrip(createdTrip.id);
+      
+      // Reset state
+      setCreatedTrip(null);
+      setSelectedTripId(undefined);
+      setItineraryGenerated(false);
+      setRefreshSidebar(prev => prev + 1);
+      
+      console.log('✅ Trip deleted');
+    } catch (err: any) {
+      console.error('❌ Error deleting trip:', err);
+      setError(err.response?.data?.detail || 'Failed to delete trip');
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -163,6 +213,7 @@ const Planner = () => {
         setItineraryGenerated(false);
       }
       
+      setRefreshSidebar(prev => prev + 1);
       console.log('✅ Trip deleted');
     } catch (err: any) {
       console.error('❌ Error deleting trip:', err);
@@ -174,52 +225,54 @@ const Planner = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#05070a] to-[#0b1120]">
-    {/* Trips Sidebar */}
-    <TripsSidebar
-      currentTripId={selectedTripId}
-      onSelectTrip={handleSelectTrip}
-      onDeleteTrip={handleDeleteTrip}
-      refreshTrigger={refreshSidebar} 
-    />
-    <div className="ml-20 transition-all duration-300">
-      <Navigation />
-      <Hero />
+      {/* Trips Sidebar */}
+      <TripsSidebar
+        currentTripId={selectedTripId}
+        onSelectTrip={handleSelectTrip}
+        onDeleteTrip={handleDeleteTrip}
+        refreshTrigger={refreshSidebar}
+      />
+      <div className="ml-20 transition-all duration-300">
+        <Navigation />
+        <Hero />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] animate-fade-in">
-            <p className="font-semibold">❌ Error</p>
-            <p className="text-sm mt-1">{error}</p>
-          </div>
-        )}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] animate-fade-in">
+              <p className="font-semibold">❌ Error</p>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
+          )}
 
-        {!createdTrip ? (
-          <TripFormV2
-            formData={formData}
-            setFormData={setFormData}
-            onSubmit={handleTripCreate}
-            loading={loading}
-            originCode={originCode}
-            setOriginCode={setOriginCode}
-            destinationCodes={destinationCodes}
-            setDestinationCodes={setDestinationCodes}
-          />
-        ) : (
-          <TripSummaryV2
-            trip={createdTrip}
-            itineraryGenerated={itineraryGenerated}
-            generatingItinerary={generatingItinerary}
-            onGenerateItinerary={handleGenerateItinerary}
-            onCreateAnother={handleCreateAnother}
-            onRefreshTrip={handleRefreshTrip}
-            loading={loading}
-            originCode={originCode}
-            destinationCodes={destinationCodes}
-          />
-        )}
-      </main>
-    </div>
+          {!createdTrip ? (
+            <TripFormV2
+              formData={formData}
+              setFormData={setFormData}
+              onSubmit={handleTripCreate}
+              loading={loading}
+              originCode={originCode}
+              setOriginCode={setOriginCode}
+              destinationCodes={destinationCodes}
+              setDestinationCodes={setDestinationCodes}
+            />
+          ) : (
+            <TripSummaryV2
+              trip={createdTrip}
+              itineraryGenerated={itineraryGenerated}
+              generatingItinerary={generatingItinerary}
+              onGenerateItinerary={handleGenerateItinerary}
+              onCreateAnother={handleCreateAnother}
+              onRefreshTrip={handleRefreshTrip}
+              onUpdateTrip={handleUpdateTrip}
+              onDeleteTrip={handleDeleteCurrentTrip}
+              loading={loading}
+              originCode={originCode}
+              destinationCodes={destinationCodes}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 };

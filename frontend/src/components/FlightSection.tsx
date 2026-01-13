@@ -115,61 +115,75 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
 
       {/* Selected Flight Display */}
       {selectedFlight && (
-        <div className="glass-card rounded-3xl p-6 mt-4 border-[#22C55E]/30 bg-gradient-to-br from-[#22C55E]/10 to-[#38BDF8]/10 animate-fade-in">
-          <div className="flex items-center gap-2 mb-4">
+      <div className="glass-card rounded-3xl p-6 mt-4 border-[#22C55E]/30 bg-gradient-to-br from-[#22C55E]/10 to-[#38BDF8]/10 animate-fade-in">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-2">
             <CheckCircle className="w-6 h-6 text-[#22C55E]" />
-            <h3 className="text-xl font-bold text-white">Flight Booked!</h3>
+            <h3 className="text-xl font-bold text-white">Flight Selected</h3>
+          </div>
+          
+          {/* Booking Disclaimer Badge */}
+          <div className="px-3 py-1.5 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/30">
+            <p className="text-xs text-[#FCD34D] font-medium">Planning Only</p>
+          </div>
+        </div>
+
+        {/* Info Message */}
+        <div className="mb-4 p-3 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/30">
+          <p className="text-sm text-[#93C5FD]">
+            ℹ️ This flight is saved for planning purposes. To actually book this flight, visit the airline's website or your preferred booking platform.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <p className="text-lg font-semibold text-white">
+              {selectedFlight.airline} {selectedFlight.flight_number}
+            </p>
+            <p className="text-sm text-[#9CA3AF]">{selectedFlight.aircraft_type}</p>
           </div>
 
-          <div className="space-y-3">
+          <div className="flex items-center justify-between py-3 px-4 bg-[#1F2937]/50 rounded-xl">
             <div>
-              <p className="text-lg font-semibold text-white">
-                {selectedFlight.airline} {selectedFlight.flight_number}
+              <p className="text-sm text-[#9CA3AF]">From</p>
+              <p className="text-white font-semibold">
+                {selectedFlight.departure_city} ({selectedFlight.departure_airport})
               </p>
-              <p className="text-sm text-[#9CA3AF]">{selectedFlight.aircraft_type}</p>
             </div>
-
-            <div className="flex items-center justify-between py-3 px-4 bg-[#1F2937]/50 rounded-xl">
-              <div>
-                <p className="text-sm text-[#9CA3AF]">From</p>
-                <p className="text-white font-semibold">
-                  {selectedFlight.departure_city} ({selectedFlight.departure_airport})
-                </p>
-              </div>
-              <Plane className="w-5 h-5 text-[#38BDF8]" />
-              <div className="text-right">
-                <p className="text-sm text-[#9CA3AF]">To</p>
-                <p className="text-white font-semibold">
-                  {selectedFlight.arrival_city} ({selectedFlight.arrival_airport})
-                </p>
-              </div>
+            <Plane className="w-5 h-5 text-[#38BDF8]" />
+            <div className="text-right">
+              <p className="text-sm text-[#9CA3AF]">To</p>
+              <p className="text-white font-semibold">
+                {selectedFlight.arrival_city} ({selectedFlight.arrival_airport})
+              </p>
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-xs text-[#9CA3AF] mb-1">Departure</p>
-                <p className="text-sm text-white">
-                  {new Date(selectedFlight.departure_time).toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-[#9CA3AF] mb-1">Arrival</p>
-                <p className="text-sm text-white">
-                  {new Date(selectedFlight.arrival_time).toLocaleString()}
-                </p>
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-[#9CA3AF] mb-1">Departure</p>
+              <p className="text-sm text-white">
+                {new Date(selectedFlight.departure_time).toLocaleString()}
+              </p>
             </div>
+            <div>
+              <p className="text-xs text-[#9CA3AF] mb-1">Arrival</p>
+              <p className="text-sm text-white">
+                {new Date(selectedFlight.arrival_time).toLocaleString()}
+              </p>
+            </div>
+          </div>
 
-            <div className="pt-3 border-t border-[rgba(148,163,184,0.2)]">
-              <div className="flex items-center justify-between">
-                <span className="text-[#9CA3AF]">Total Price</span>
-                <span className="text-2xl font-bold text-[#22C55E]">
-                  ${selectedFlight.price_amount} {selectedFlight.price_currency}
-                </span>
-              </div>
+          <div className="pt-3 border-t border-[rgba(148,163,184,0.2)]">
+            <div className="flex items-center justify-between">
+              <span className="text-[#9CA3AF]">Total Price</span>
+              <span className="text-2xl font-bold text-[#22C55E]">
+                ${selectedFlight.price_amount} {selectedFlight.price_currency}
+              </span>
             </div>
           </div>
         </div>
+      </div>
       )}
     </div>
   );
