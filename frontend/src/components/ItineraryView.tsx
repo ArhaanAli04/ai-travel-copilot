@@ -5,6 +5,7 @@ import { ExplanationModal } from './ExplanationModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { ReplanDayModal } from './ReplanDayModal';
 import type { ActivityExplanation } from '../services/api';
+import { EditableActivityField } from './EditableActivityField';
 
 interface ItineraryViewProps {
   trip: Trip;
@@ -162,6 +163,49 @@ const ItineraryView = ({ trip, onTripUpdate }: ItineraryViewProps) => {
     }
   };
 
+  const handleUpdateActivity = async (
+  activityId: number,
+  updates: {
+    title?: string;
+    start_time?: string;
+    end_time?: string;
+  }
+) => {
+  try {
+    const result = await activityApi.updateActivity(activityId, updates, true);
+    
+    // Show toast notification if other activities were adjusted
+    if (result.adjusted_activities.length > 0) {
+      console.log(`✅ Adjusted ${result.adjusted_activities.length} subsequent activities`);
+      // You can add a toast notification here
+    }
+    
+    await onTripUpdate();
+  } catch (error) {
+    console.error('Failed to update activity:', error);
+    throw error;
+  }
+};
+
+// Validation functions
+const validateTime = (time: string): string | null => {
+  const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+  if (!timeRegex.test(time)) {
+    return 'Invalid time format (use HH:MM)';
+  }
+  return null;
+};
+
+const validateTitle = (title: string): string | null => {
+  if (!title.trim()) {
+    return 'Title cannot be empty';
+  }
+  if (title.length > 200) {
+    return 'Title too long (max 200 characters)';
+  }
+  return null;
+};
+
   if (!trip.days || trip.days.length === 0) {
     return (
       <div className="glass-card rounded-3xl p-12 border-[rgba(148,163,184,0.2)] text-center">
@@ -267,22 +311,57 @@ const ItineraryView = ({ trip, onTripUpdate }: ItineraryViewProps) => {
                     <div className="p-4 rounded-xl bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)] hover:bg-[#1F2937]/70 transition-all">
                         <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                            <h5 className="text-lg font-semibold text-white mb-2">
-                            {activity.order}. {activity.title}
-                            </h5>
+                            {/* Editable Title */}
+                            <div className="mb-2">
+                            <span className="text-white font-semibold mr-2">{activity.order}.</span>
+                            <EditableActivityField
+                                value={activity.title}
+                                type="text"
+                                onSave={(newTitle) => handleUpdateActivity(activity.id, { title: newTitle })}
+                                placeholder="Activity title"
+                                className="inline-flex text-lg font-semibold text-white"
+                                validate={validateTitle}
+                            />
+                            </div>
 
-                            {/* Time, Duration, Category */}
+                            {/* Editable Times */}
                             <div className="flex flex-wrap gap-3 text-sm text-[#9CA3AF]">
-                            {activity.start_time && (
-                                <div className="flex items-center gap-1">
+                            {(activity.start_time || activity.end_time) && (
+                                <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4" />
-                                {activity.start_time}
-                                {activity.end_time && ` - ${activity.end_time}`}
+                                
+                                {activity.start_time && (
+                                    <EditableActivityField
+                                    value={activity.start_time}
+                                    type="time"
+                                    onSave={(newTime) => handleUpdateActivity(activity.id, { start_time: newTime })}
+                                    className="text-sm"
+                                    validate={validateTime}
+                                    />
+                                )}
+                                
+                                {activity.start_time && activity.end_time && (
+                                    <span className="text-[#6B7280]">-</span>
+                                )}
+                                
+                                {activity.end_time && (
+                                    <EditableActivityField
+                                    value={activity.end_time}
+                                    type="time"
+                                    onSave={(newTime) => handleUpdateActivity(activity.id, { end_time: newTime })}
+                                    className="text-sm"
+                                    validate={validateTime}
+                                    />
+                                )}
                                 </div>
                             )}
+                            
                             {activity.duration_minutes && (
-                                <div className="flex items-center gap-1">⏱️ {activity.duration_minutes} min</div>
+                                <div className="flex items-center gap-1">
+                                ⏱️ {activity.duration_minutes} min
+                                </div>
                             )}
+                            
                             {activity.category && (
                                 <div className="px-2 py-1 rounded-full bg-[#38BDF8]/10 text-[#38BDF8] text-xs font-medium">
                                 {activity.category}

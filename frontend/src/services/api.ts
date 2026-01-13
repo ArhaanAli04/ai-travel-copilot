@@ -253,6 +253,36 @@ export const activityApi = {
       activity_ids: activityIds
     });
   },
+
+  // Update activity (title, times)
+  updateActivity: async (
+    activityId: number,
+    updates: {
+      title?: string;
+      start_time?: string;
+      end_time?: string;
+      duration_minutes?: number;
+    },
+    autoAdjustSubsequent = true
+  ): Promise<{
+    activity: Activity;
+    adjusted_activities: Array<{
+      id: number;
+      title: string;
+      new_start_time: string;
+      new_end_time: string;
+    }>;
+    time_shift_minutes: number;
+  }> => {
+    const response = await api.patch(
+      `/trips/activities/${activityId}`,
+      updates,
+      {
+        params: { auto_adjust_subsequent: autoAdjustSubsequent }
+      }
+    );
+    return response.data;
+  },
 };
 
 // Day re-planning API

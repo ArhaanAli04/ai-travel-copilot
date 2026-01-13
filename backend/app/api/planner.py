@@ -7,10 +7,11 @@ from app.models.trip_day import TripDay
 from app.models.activity import Activity
 from app.schemas.trip import (
     TripCreate, TripUpdate, TripResponse, TripListResponse,
-    ActivityReorderRequest, DayReplanRequest, ActivityDeleteResponse 
+    ActivityReorderRequest, DayReplanRequest, ActivityDeleteResponse ,ActivityUpdate
 )
 import logging
 from app.ai.planner_agent import create_planner_agent
+from datetime import time as time_type, datetime,timedelta
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/trips", tags=["Planner"])
@@ -590,4 +591,156 @@ async def replan_day(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to re-plan day: {str(e)}"
+        )
+
+@router.patch("/activities/{activity_id}", response_model=dict)
+async def update_activity(
+    activity_id: int,
+    update_data: ActivityUpdate,
+    auto_adjust_subsequent: bool = Query(True, description="Auto-adjust subsequent activity times"),
+    db: Session = Depends(get_db)
+):
+    """
+    Update activity details (title, times)
+    
+    **What it does:**
+    1. Updates activity title and/or times
+    2. Recalculates duration if both start and end times provided
+    3. Optionally adjusts subsequent activities' times
+    4. Validates time conflicts
+    
+    **Request body:**
+    - title: New activity title
+    - start_time: New start time (HH:MM format)
+    - end_time: New end time (HH:MM format)
+    - duration_minutes: New duration (will be recalculated if times provided)
+    
+    **Query params:**
+    - auto_adjust_subsequent: If true, shifts subsequent activities by the time difference
+    
+    **Returns:**
+    - Updated activity
+    - List of other activities that were adjusted
+    """
+    try:
+        # Get activity
+        activity = db.query(Activity).filter(Activity.id == activity_id).first()
+        
+        if not activity:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        
+        # Store original times for adjustment calculation
+        original_start = activity.start_time
+        original_end = activity.end_time
+        original_duration = activity.duration_minutes
+
+        # Update fields
+        update_dict = update_data.model_dump(exclude_unset=True)
+        
+        for field, value in update_dict.items():
+            if field in ['start_time', 'end_time'] and value:
+                # Convert string to time object
+                time_obj = datetime.strptime(value, '%H:%M').time()
+                setattr(activity, field, time_obj)
+            elif field == 'title':
+                setattr(activity, field, value)
+        
+        # Recalculate duration if both times provided
+        if activity.start_time and activity.end_time:
+            start_dt = datetime.combine(datetime.today(), activity.start_time)
+            end_dt = datetime.combine(datetime.today(), activity.end_time)
+            
+            # Handle crossing midnight
+            if end_dt < start_dt:
+                end_dt += timedelta(days=1)
+            
+            duration = (end_dt - start_dt).total_seconds() / 60
+            activity.duration_minutes = int(duration)
+            
+            # Validate: end time must be after start time
+            if duration <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="End time must be after start time"
+                )
+        
+        db.flush()
+        
+        # Auto-adjust subsequent activities if requested
+        adjusted_activities = []
+        time_shift = 0
+
+        if auto_adjust_subsequent:
+            # Calculate shift based on what changed
+            if original_end and activity.end_time and original_end != activity.end_time:
+                # End time changed - shift subsequent activities by the difference
+                orig_end_dt = datetime.combine(datetime.today(), original_end)
+                new_end_dt = datetime.combine(datetime.today(), activity.end_time)
+                time_shift = (new_end_dt - orig_end_dt).total_seconds() / 60  # minutes
+                
+                logger.info(f"📊 End time changed from {original_end} to {activity.end_time}, shift: {time_shift} min")
+                
+            elif original_start and activity.start_time and original_start != activity.start_time:
+                # Start time changed - shift subsequent activities by the difference
+                orig_start_dt = datetime.combine(datetime.today(), original_start)
+                new_start_dt = datetime.combine(datetime.today(), activity.start_time)
+                time_shift = (new_start_dt - orig_start_dt).total_seconds() / 60  # minutes
+                
+                logger.info(f"📊 Start time changed from {original_start} to {activity.start_time}, shift: {time_shift} min")
+            
+            # Apply shift to subsequent activities if there's a change
+            if time_shift != 0:
+                # Get subsequent activities in the same day
+                subsequent_activities = db.query(Activity).filter(
+                    Activity.trip_day_id == activity.trip_day_id,
+                    Activity.order > activity.order
+                ).order_by(Activity.order).all()
+                
+                logger.info(f"🔄 Adjusting {len(subsequent_activities)} subsequent activities by {time_shift} minutes")
+                
+                # Shift each subsequent activity
+                for act in subsequent_activities:
+                    if act.start_time:
+                        old_start = datetime.combine(datetime.today(), act.start_time)
+                        new_start = old_start + timedelta(minutes=time_shift)
+                        act.start_time = new_start.time()
+                        
+                    if act.end_time:
+                        old_end = datetime.combine(datetime.today(), act.end_time)
+                        new_end = old_end + timedelta(minutes=time_shift)
+                        act.end_time = new_end.time()
+                    
+                    adjusted_activities.append({
+                        "id": act.id,
+                        "title": act.title,
+                        "new_start_time": act.start_time.strftime('%H:%M') if act.start_time else None,
+                        "new_end_time": act.end_time.strftime('%H:%M') if act.end_time else None
+                    })
+        
+        db.commit()
+        db.refresh(activity)
+        
+        logger.info(f"✏️ Updated activity {activity_id}, adjusted {len(adjusted_activities)} subsequent activities")
+        
+        return {
+            "message": "Activity updated successfully",
+            "activity": {
+                "id": activity.id,
+                "title": activity.title,
+                "start_time": activity.start_time.strftime('%H:%M') if activity.start_time else None,
+                "end_time": activity.end_time.strftime('%H:%M') if activity.end_time else None,
+                "duration_minutes": activity.duration_minutes
+            },
+            "adjusted_activities": adjusted_activities,
+            "time_shift_minutes": time_shift 
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to update activity {activity_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update activity: {str(e)}"
         )

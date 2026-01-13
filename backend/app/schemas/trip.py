@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field,validator
 from typing import Optional, List
 from datetime import datetime, date
 from datetime import time as Time
@@ -33,6 +33,23 @@ class ActivityBase(BaseModel):
         json_encoders = {
             Time: lambda v: v.strftime("%H:%M") if v else None
         }
+
+class ActivityUpdate(BaseModel):
+    title: Optional[str] = None
+    start_time: Optional[str] = None  # "09:00"
+    end_time: Optional[str] = None    # "10:30"
+    duration_minutes: Optional[int] = None
+    
+    @validator('start_time', 'end_time')
+    def validate_time_format(cls, v):
+        if v is None:
+            return v
+        try:
+            # Validate HH:MM format
+            datetime.strptime(v, '%H:%M')
+            return v
+        except ValueError:
+            raise ValueError('Time must be in HH:MM format (e.g., "09:00")')
 
 class ActivityCreate(ActivityBase):
     trip_day_id: int
