@@ -66,10 +66,26 @@ class PlannerAgent:
         # Check if itinerary already exists
         existing_days = self.db.query(TripDay).filter(TripDay.trip_id == trip_id).count()
         if existing_days > 0:
-            logger.warning(f"⚠️ Trip {trip_id} already has {existing_days} days planned. Returning existing itinerary.")
-            logger.info("💡 To regenerate, delete existing days first or use a different endpoint.")
-            self.db.refresh(trip)
-            return trip
+            logger.info(f"🗑️ Deleting {existing_days} existing days for trip {trip_id} to regenerate")
+            
+            try:
+                # Delete activities first (foreign key constraint)
+                deleted_activities = self.db.query(Activity).filter(
+                    Activity.trip_day_id.in_(
+                        self.db.query(TripDay.id).filter(TripDay.trip_id == trip_id)
+                    )
+                ).delete(synchronize_session=False)
+                
+                # Delete days
+                deleted_days = self.db.query(TripDay).filter(TripDay.trip_id == trip_id).delete(synchronize_session=False)
+                
+                self.db.commit()
+                logger.info(f"✅ Deleted {deleted_days} days and {deleted_activities} activities for trip {trip_id}")
+                
+            except Exception as e:
+                self.db.rollback()
+                logger.error(f"❌ Failed to delete existing itinerary: {e}")
+                raise
         
         try:
             # Step 1: Fetch weather forecast for all trip dates

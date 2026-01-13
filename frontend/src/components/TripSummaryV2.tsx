@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2 } from 'lucide-react';
-import type { Trip } from '../services/api';
+import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2,AlertTriangle } from 'lucide-react';
+import {type Trip,tripApi } from '../services/api';
 import FlightSection from './FlightSection';
 import ItineraryView from './ItineraryView';
 import { EditTripModal } from './EditTripModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { RegenerationConfirmModal } from './RegenerationConfirmModal';
 
 interface TripSummaryV2Props {
   trip: Trip;
@@ -37,18 +38,140 @@ export function TripSummaryV2({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [regenerationModal, setRegenerationModal] = useState<{
+    isOpen: boolean;
+    changes: {
+        datesChanged: boolean;
+        travelersChanged: boolean;
+        tripTypeChanged: boolean;
+        interestsChanged: boolean;
+    };
+    oldDates: { start: string; end: string };
+    newDates: { start: string; end: string };
+    oldTravelers: number;
+    newTravelers: number;
+    }>({
+    isOpen: false,
+    changes: {
+        datesChanged: false,
+        travelersChanged: false,
+        tripTypeChanged: false,
+        interestsChanged: false,
+    },
+    oldDates: { start: '', end: '' },
+    newDates: { start: '', end: '' },
+    oldTravelers: 0,
+    newTravelers: 0,
+    });
+
+    const [pendingUpdates, setPendingUpdates] = useState<Partial<Trip> | null>(null);
+    const [showOutdatedWarning, setShowOutdatedWarning] = useState(false);
 
   const handleUpdateTrip = async (updates: Partial<Trip>) => {
-    setEditLoading(true);
     try {
-      await onUpdateTrip(updates);
-      setShowEditModal(false);
-    } catch (error) {
-      console.error('Failed to update trip:', error);
-    } finally {
-      setEditLoading(false);
+    // Close edit modal first
+    setShowEditModal(false);
+    
+    // Detect critical changes
+    const datesChanged = Boolean(
+      (updates.start_date && updates.start_date !== trip.start_date) || 
+      (updates.end_date && updates.end_date !== trip.end_date)
+    );
+    
+    const travelersChanged = Boolean(
+      updates.traveler_count !== undefined && 
+      updates.traveler_count !== trip.traveler_count
+    );
+    
+    const tripTypeChanged = Boolean(
+      updates.trip_type !== undefined && 
+      updates.trip_type !== trip.trip_type
+    );
+    
+    const interestsChanged = Boolean(
+      updates.interests !== undefined &&
+      JSON.stringify(updates.interests?.sort()) !== JSON.stringify(trip.interests?.sort())
+    );
+    
+    const needsRegeneration = datesChanged || travelersChanged || tripTypeChanged || interestsChanged;
+    
+    // If critical changes and itinerary exists, show confirmation modal
+    if (needsRegeneration && trip.days && trip.days.length > 0) {
+      setRegenerationModal({
+        isOpen: true,
+        changes: {
+          datesChanged,
+          travelersChanged,
+          tripTypeChanged,
+          interestsChanged,
+        },
+        oldDates: {
+          start: trip.start_date,
+          end: trip.end_date,
+        },
+        newDates: {
+          start: updates.start_date || trip.start_date,
+          end: updates.end_date || trip.end_date,
+        },
+        oldTravelers: trip.traveler_count,
+        newTravelers: updates.traveler_count || trip.traveler_count,
+      });
+      setPendingUpdates(updates);
+      return;
     }
+    
+    // If no regeneration needed or no itinerary exists, just save
+    setEditLoading(true);
+    await onUpdateTrip(updates);
+    setEditLoading(false);
+    
+  } catch (error) {
+    console.error('Failed to update trip:', error);
+    setEditLoading(false);
+  }
   };
+
+  const handleKeepCurrentItinerary = async () => {
+  if (!pendingUpdates) return;
+  
+  try {
+    setEditLoading(true);
+    await onUpdateTrip(pendingUpdates);
+    setRegenerationModal(prev => ({ ...prev, isOpen: false }));
+    setPendingUpdates(null);
+    setShowOutdatedWarning(true); // Show warning banner
+    setEditLoading(false);
+    onRefreshTrip(); 
+  } catch (error) {
+    console.error('Failed to update trip:', error);
+    setEditLoading(false);
+  }
+};
+
+const handleRegenerateItinerary = async () => {
+  if (!pendingUpdates) return;
+  
+  try {
+    setEditLoading(true);
+    
+    // First save the updates
+    await onUpdateTrip(pendingUpdates);
+    
+    // Then regenerate itinerary
+    await tripApi.generateItinerary(trip.id);
+    
+    // Refresh trip data
+    onRefreshTrip();
+    
+    setRegenerationModal(prev => ({ ...prev, isOpen: false }));
+    setPendingUpdates(null);
+    setShowOutdatedWarning(false);
+    setEditLoading(false);
+  } catch (error) {
+    console.error('Failed to regenerate itinerary:', error);
+    setEditLoading(false);
+  }
+};
 
   const handleDeleteTrip = async () => {
     setDeleteLoading(true);
@@ -61,9 +184,49 @@ export function TripSummaryV2({
       setDeleteLoading(false);
     }
   };
-
+  
+  
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+
+      {showOutdatedWarning && (
+      <div className="p-4 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/30 animate-fade-in">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-[#FCD34D] font-medium mb-1">
+              ⚠️ Your itinerary may be outdated
+            </p>
+            <p className="text-sm text-[#9CA3AF] mb-3">
+              You've updated trip details but kept the old itinerary. Consider regenerating for best results.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  setEditLoading(true);
+                  await tripApi.generateItinerary(trip.id);
+                  onRefreshTrip();
+                  setShowOutdatedWarning(false);
+                  setEditLoading(false);
+                }}
+                disabled={editLoading}
+                className="px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Regenerate Now
+              </button>
+              <button
+                onClick={() => setShowOutdatedWarning(false)}
+                className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-medium transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
       {/* Success Banner with Edit/Delete buttons */}
       <div className="glass-card rounded-3xl p-6 border-[#22C55E]/30 bg-gradient-to-r from-[#22C55E]/10 to-[#38BDF8]/10">
         <div className="flex items-start justify-between">
@@ -224,7 +387,18 @@ export function TripSummaryV2({
         trip={trip}
         loading={editLoading}
       />
-
+      <RegenerationConfirmModal
+        isOpen={regenerationModal.isOpen}
+        onClose={() => setRegenerationModal(prev => ({ ...prev, isOpen: false }))}
+        onKeepCurrent={handleKeepCurrentItinerary}
+        onRegenerate={handleRegenerateItinerary}
+        loading={editLoading}
+        oldDates={regenerationModal.oldDates}
+        newDates={regenerationModal.newDates}
+        oldTravelers={regenerationModal.oldTravelers}
+        newTravelers={regenerationModal.newTravelers}
+        changes={regenerationModal.changes}
+        />
       <DeleteConfirmModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

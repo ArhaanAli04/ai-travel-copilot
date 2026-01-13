@@ -102,6 +102,7 @@ async def get_trip(trip_id: int, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
         
         logger.info(f"📖 Retrieved trip {trip_id}")
+        trip.days = sorted(trip.days, key=lambda x: x.day_number)
         for day in trip.days:
             day.activities = sorted(day.activities, key=lambda x: x.order)
         return trip
