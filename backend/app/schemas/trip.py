@@ -158,6 +158,7 @@ class TripBase(BaseModel):
     include_flights: bool = False
     flight_preferences: Optional[dict] = None
     notes: Optional[str] = None
+    is_favorite: bool = False 
 
 
 class TripCreate(TripBase):
@@ -180,6 +181,7 @@ class TripUpdate(BaseModel):
     flight_preferences: Optional[dict] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+    is_favorite: Optional[bool] = None 
 
 
 class TripResponse(TripBase):
@@ -204,6 +206,7 @@ class TripListResponse(BaseModel):
     trip_type: str
     traveler_count: int
     created_at: datetime
+    is_favorite: bool = False
 
     class Config:
         from_attributes = True

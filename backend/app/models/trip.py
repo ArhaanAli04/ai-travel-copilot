@@ -42,6 +42,8 @@ class Trip(Base):
     # Status
     status = Column(String, default="draft")  # draft, planning, planned, completed
     
+    is_favorite = Column(Boolean, default=False)
+    
     # Metadata
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

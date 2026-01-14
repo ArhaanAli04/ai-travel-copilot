@@ -31,6 +31,7 @@ export interface Trip {
   status: string;
   created_at: string;
   updated_at?: string;
+  is_favorite: boolean;
   days: TripDay[];
   flights?: Flight[];
 }
@@ -166,6 +167,18 @@ export const tripApi = {
 
   generateItinerary: async (tripId: number): Promise<Trip> => {
     const response = await api.post(`/trips/${tripId}/plan`);
+    return response.data;
+  },
+
+  toggleFavorite: async (tripId: number): Promise<{ trip_id: number; is_favorite: boolean; message: string }> => {
+    const response = await api.post(`/trips/${tripId}/favorite`);
+    return response.data;
+  },
+
+  // NEW: Get favorite trips
+  getFavoriteTrips: async (userId?: number): Promise<Trip[]> => {
+    const params = userId ? { user_id: userId } : {};
+    const response = await api.get('/trips/favorites', { params });
     return response.data;
   },
 };

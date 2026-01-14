@@ -148,6 +148,93 @@ async def update_trip(
         logger.error(f"❌ Failed to update trip {trip_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update trip: {str(e)}")
 
+@router.post("/{trip_id}/favorite", response_model=dict)
+async def toggle_favorite(
+    trip_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Toggle favorite status for a trip
+    
+    **What it does:**
+    1. Finds the trip by ID
+    2. Toggles the is_favorite field
+    3. Returns updated favorite status
+    
+    **Returns:**
+    - trip_id: ID of the trip
+    - is_favorite: New favorite status (true/false)
+    - message: Confirmation message
+    """
+    try:
+        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        
+        if not trip:
+            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        
+        # Toggle favorite status
+        trip.is_favorite = not trip.is_favorite
+        
+        db.commit()
+        db.refresh(trip)
+        
+        status = "added to" if trip.is_favorite else "removed from"
+        logger.info(f"⭐ Trip {trip_id} {status} favorites")
+        
+        return {
+            "trip_id": trip.id,
+            "is_favorite": trip.is_favorite,
+            "message": f"Trip {status} favorites"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to toggle favorite for trip {trip_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to toggle favorite: {str(e)}"
+        )
+
+
+@router.get("/favorites", response_model=List[TripListResponse])
+async def get_favorite_trips(
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all favorite trips
+    
+    **What it does:**
+    1. Queries trips where is_favorite = true
+    2. Returns list of favorite trips
+    
+    **Returns:**
+    - List of favorite trips
+    """
+    try:
+        query = db.query(Trip).filter(Trip.is_favorite == True)
+        
+        # Apply user filter if provided
+        if user_id is not None:
+            query = query.filter(Trip.user_id == user_id)
+        
+        # Order by updated_at descending (most recently favorited first)
+        query = query.order_by(Trip.updated_at.desc())
+        
+        # Pagination
+        trips = query.offset(skip).limit(limit).all()
+        
+        logger.info(f"⭐ Listed {len(trips)} favorite trips")
+        return trips
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to list favorite trips: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list favorite trips: {str(e)}")
+
 
 @router.delete("/{trip_id}", status_code=204)
 async def delete_trip(trip_id: int, db: Session = Depends(get_db)):
