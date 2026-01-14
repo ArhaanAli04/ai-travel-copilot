@@ -148,6 +148,49 @@ async def select_flight(
         logger.error(f"❌ Failed to select flight: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to select flight: {str(e)}")
 
+@router.delete("/{trip_id}/flights/{flight_id}", status_code=204)
+async def delete_flight(
+    trip_id: int = Path(..., description="Trip ID"),
+    flight_id: int = Path(..., description="Flight ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a selected flight from a trip
+    """
+    try:
+        # Verify trip exists
+        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        if not trip:
+            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        
+        # Verify flight exists and belongs to this trip
+        flight = db.query(Flight).filter(
+            Flight.id == flight_id,
+            Flight.trip_id == trip_id
+        ).first()
+        
+        if not flight:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Flight {flight_id} not found in trip {trip_id}"
+            )
+        
+        # Delete flight
+        db.delete(flight)
+        db.commit()
+        
+        logger.info(f"🗑️ Deleted flight {flight_id} from trip {trip_id}")
+        return None
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to delete flight: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete flight: {str(e)}"
+        )
 
 @router.get("/{trip_id}/flights", response_model=List[FlightResponse])
 async def get_trip_flights(

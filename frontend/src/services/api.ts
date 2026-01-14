@@ -207,6 +207,10 @@ export const flightApi = {
     const response = await api.get(`/trips/${tripId}/flights`);
     return response.data;
   },
+
+  deleteFlight: async (tripId: number, flightId: number): Promise<void> => {
+    await api.delete(`/trips/${tripId}/flights/${flightId}`);
+  },
 };
 
 // Airport autocomplete
