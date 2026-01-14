@@ -6,6 +6,7 @@ import ItineraryView from './ItineraryView';
 import { EditTripModal } from './EditTripModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { RegenerationConfirmModal } from './RegenerationConfirmModal';
+import ExportButton from './ExportButton';
 
 interface TripSummaryV2Props {
   trip: Trip;
@@ -283,7 +284,11 @@ const handleRegenerateItinerary = async () => {
           </div>
         </div>
       </div>
-
+      {itineraryGenerated && (
+      <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
+        <ExportButton trip={trip} />
+      </div>
+    )}
       {/* Generate Itinerary Button */}
       {!itineraryGenerated && (
         <button
