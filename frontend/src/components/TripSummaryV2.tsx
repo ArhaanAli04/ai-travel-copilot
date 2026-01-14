@@ -7,6 +7,7 @@ import { EditTripModal } from './EditTripModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { RegenerationConfirmModal } from './RegenerationConfirmModal';
 import ExportButton from './ExportButton';
+import EmailModal from './EmailModal';
 
 interface TripSummaryV2Props {
   trip: Trip;
@@ -67,6 +68,7 @@ export function TripSummaryV2({
 
     const [pendingUpdates, setPendingUpdates] = useState<Partial<Trip> | null>(null);
     const [showOutdatedWarning, setShowOutdatedWarning] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
 
   const handleUpdateTrip = async (updates: Partial<Trip>) => {
     try {
@@ -186,6 +188,13 @@ const handleRegenerateItinerary = async () => {
     }
   };
   
+  const handleSendEmail = async (email: string) => {
+  try {
+    await tripApi.emailItinerary(trip.id, { email, include_pdf: true });
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || 'Failed to send email');
+  }
+};
   
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
@@ -286,7 +295,9 @@ const handleRegenerateItinerary = async () => {
       </div>
       {itineraryGenerated && (
       <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-        <ExportButton trip={trip} />
+        <ExportButton 
+        trip={trip}
+        onEmailClick={() => setShowEmailModal(true)} />
       </div>
     )}
       {/* Generate Itinerary Button */}
@@ -412,6 +423,12 @@ const handleRegenerateItinerary = async () => {
         message={`Are you sure you want to delete "${trip.title}"? This action cannot be undone. All days, activities, and flights will be permanently deleted.`}
         loading={deleteLoading}
       />
+      <EmailModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        onSend={handleSendEmail}
+        tripTitle={trip.title}
+        />
     </div>
   );
 }

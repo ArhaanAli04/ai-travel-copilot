@@ -12,6 +12,8 @@ from app.schemas.trip import (
 import logging
 from app.ai.planner_agent import create_planner_agent
 from datetime import time as time_type, datetime,timedelta
+from app.services.email_service import EmailService
+from pydantic import BaseModel, EmailStr
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/trips", tags=["Planner"])
@@ -830,4 +832,45 @@ async def update_activity(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to update activity: {str(e)}"
+        )
+    
+# Add this model at the top with other models
+class EmailItineraryRequest(BaseModel):
+    email: EmailStr
+    include_pdf: bool = True
+
+
+# Add this endpoint with your other trip endpoints
+@router.post("/{trip_id}/email", response_model=dict)
+def email_trip_itinerary(
+    trip_id: int,
+    request: EmailItineraryRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Send trip itinerary via email
+    """
+    # Get trip
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    
+    try:
+        # Send email (without PDF for now - we'll add PDF generation later)
+        result = EmailService.send_itinerary_email(
+            trip=trip,
+            recipient_email=request.email,
+            pdf_bytes=None  # We'll add PDF generation in next step
+        )
+        
+        return {
+            "success": True,
+            "message": f"Itinerary sent to {request.email}",
+            "message_id": result.get("message_id")
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send email: {str(e)}"
         )

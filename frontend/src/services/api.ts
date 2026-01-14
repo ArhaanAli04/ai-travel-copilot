@@ -126,7 +126,10 @@ export interface Flight {
   source?: string;
   flight_direction?: string;
 }
-
+export interface EmailItineraryRequest {
+  email: string;
+  include_pdf?: boolean;
+}
 // API Functions
 export const tripApi = {
   // Create new trip
@@ -179,6 +182,11 @@ export const tripApi = {
   getFavoriteTrips: async (userId?: number): Promise<Trip[]> => {
     const params = userId ? { user_id: userId } : {};
     const response = await api.get('/trips/favorites', { params });
+    return response.data;
+  },
+
+  emailItinerary: async (tripId: number, data: EmailItineraryRequest): Promise<any> => {
+    const response = await api.post(`/trips/${tripId}/email`, data);
     return response.data;
   },
 };
