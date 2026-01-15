@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.sql import func
 from app.core.postgres import Base
-
+from sqlalchemy.orm import relationship 
 
 class User(Base):
     """
@@ -20,5 +20,8 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # ✅ ADD THESE RELATIONSHIPS (optional but recommended)
+    # trips = relationship("Trip", backref="user", cascade="all, delete-orphan")
+    # disruption_cases = relationship("DisruptionCase", backref="user", cascade="all, delete-orphan")
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', name='{self.name}')>"
