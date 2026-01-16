@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Email settings
     RESEND_API_KEY: str
     FROM_EMAIL: str = "onboarding@resend.dev"  # Resend's test email
+
+    AVIATIONSTACK_API_KEY: str  
+    TOMORROW_IO_API_KEY: str    
+
     # Caching (NEW)
     CACHE_TTL_DAYS: int = 30
     CACHE_CHECK_INTERVAL_HOURS: int = 24

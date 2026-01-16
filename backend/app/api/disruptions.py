@@ -4,7 +4,7 @@ API endpoints for travel disruption management
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime
+from datetime import datetime,timezone
 import logging
 
 from app.core.postgres import get_db
@@ -18,16 +18,40 @@ from app.schemas.disruption import (
     DisruptionOptionCreate,
     DisruptionOptionResponse
 )
+from app.services.disruption_service import disruption_service  # ✅ ADD THIS IMPORT
 
 
 router = APIRouter(prefix="/disruptions", tags=["disruptions"])
 logger = logging.getLogger(__name__)
 
 
+@router.get("/api-usage")  # ✅ This will be: /api/disruptions/api-usage
+def get_api_usage():
+    """
+    Get API usage statistics for disruption service
+    
+    Returns:
+    - AviationStack: calls made, monthly limit, remaining
+    - Tomorrow.io: calls made, daily limit, remaining
+    """
+    return {
+        "aviationstack": {
+            "calls_made": disruption_service.api_calls.get("aviationstack", 0),
+            "monthly_limit": 100,
+            "remaining": 100 - disruption_service.api_calls.get("aviationstack", 0)
+        },
+        "tomorrow_io": {
+            "calls_made": disruption_service.api_calls.get("tomorrow_io", 0),
+            "daily_limit": 500,
+            "hourly_limit": 25,
+            "remaining_daily": 500 - disruption_service.api_calls.get("tomorrow_io", 0)
+        },
+        "note": "Counter resets when server restarts"
+    }
 # ===== CRUD Operations =====
 
 @router.post("/", response_model=DisruptionCaseResponse, status_code=status.HTTP_201_CREATED)
-def create_disruption_case(
+async def create_disruption_case(
     case_data: DisruptionCaseCreate,
     db: Session = Depends(get_db)
 ):
@@ -52,7 +76,7 @@ def create_disruption_case(
             disruption_type=disruption_type,
             pnr=case_data.pnr,
             notes=case_data.notes,
-            current_status="Case created - pending status check",
+            current_status="Checking flight status",
             severity=DisruptionSeverity.LOW,
             meta_data={}
         )
@@ -62,7 +86,12 @@ def create_disruption_case(
         db.refresh(db_case)
         
         logger.info(f"✅ Created disruption case {db_case.id} for flight {db_case.flight_number}")
-        
+        try:
+            db_case = await disruption_service.enrich_disruption_case(db_case, db)
+            logger.info(f"✅ Case {db_case.id} auto-enriched with flight/weather data")
+        except Exception as e:
+            logger.warning(f"⚠️ Auto-enrichment failed (case still created): {e}")
+            # Don't fail the request if enrichment fails
         return db_case
         
     except Exception as e:
@@ -153,7 +182,7 @@ def update_disruption_case(
     for field, value in update_data.items():
         setattr(case, field, value)
     
-    case.updated_at = datetime.utcnow()
+    case.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(case)
@@ -228,7 +257,6 @@ def create_disruption_option(
     
     return db_option
 
-
 @router.get("/{case_id}/options", response_model=List[DisruptionOptionResponse])
 def list_disruption_options(
     case_id: int,
@@ -257,24 +285,59 @@ def list_disruption_options(
     
     return options
 
+@router.post("/{case_id}/refresh", response_model=DisruptionCaseResponse)
+async def refresh_disruption_case(
+    case_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh disruption case with latest flight/weather data
+    
+    - Re-checks flight status
+    - Re-checks weather alerts
+    - Updates case metadata and status
+    """
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Disruption case {case_id} not found"
+        )
+    
+    try:
+        # Enrich with latest data
+        case = await disruption_service.enrich_disruption_case(case, db)
+        
+        logger.info(f"✅ Case {case_id} refreshed successfully")
+        return case
+        
+    except Exception as e:
+        logger.error(f"❌ Case refresh failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh case: {str(e)}"
+        )
 
 # ===== Helper Functions =====
-
 def _detect_disruption_type(notes: str) -> DisruptionType:
     """
-    Simple heuristic to detect disruption type from notes
-    
-    TODO: Replace with more sophisticated NLP analysis
+    Auto-detect disruption type from notes using simple keyword matching
     """
     notes_lower = notes.lower()
     
-    if any(word in notes_lower for word in ["cancel", "cancelled", "cancellation"]):
+    if any(word in notes_lower for word in ["cancel", "cancelled"]):
         return DisruptionType.CANCELLATION
-    elif any(word in notes_lower for word in ["weather", "storm", "snow", "rain", "fog"]):
-        return DisruptionType.WEATHER
-    elif any(word in notes_lower for word in ["strike", "labor", "union"]):
-        return DisruptionType.STRIKE
     elif any(word in notes_lower for word in ["delay", "delayed", "late"]):
         return DisruptionType.DELAY
+    elif any(word in notes_lower for word in ["miss", "missed", "connecting"]):
+        return DisruptionType.MISSED_CONNECTION
+    elif any(word in notes_lower for word in ["overbook", "bump", "denied boarding"]):
+        return DisruptionType.OVERBOOKING
+    elif any(word in notes_lower for word in ["baggage", "luggage", "bag", "lost"]):
+        return DisruptionType.BAGGAGE_ISSUE
     else:
         return DisruptionType.OTHER
