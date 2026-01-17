@@ -136,6 +136,46 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"❌ Failed to embed query: {e}")
             raise
+
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generate embeddings for a batch of texts
+        
+        Args:
+            texts: List of text strings
+            
+        Returns:
+            List of embedding vectors (each as a list of floats)
+        """
+        try:
+            logger.info(f"🔄 Generating embeddings for {len(texts)} texts...")
+            
+            embeddings_list = []
+            
+            # Process in batches to avoid rate limits
+            for i in range(0, len(texts), self.batch_size):
+                batch = texts[i:i + self.batch_size]
+                
+                # Generate embeddings for this batch
+                batch_embeddings = self._embed_texts(batch)
+                
+                # Convert numpy array to list of lists
+                for embedding in batch_embeddings:
+                    embeddings_list.append(embedding.tolist() if isinstance(embedding, np.ndarray) else embedding)
+                
+                # Rate limiting
+                if i + self.batch_size < len(texts):
+                    time.sleep(self.rate_limit_delay)
+                
+                logger.info(f"✅ Embedded batch {i//self.batch_size + 1}/{(len(texts)-1)//self.batch_size + 1}")
+            
+            logger.info(f"✅ Generated {len(embeddings_list)} embeddings")
+            return embeddings_list
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to embed batch: {e}")
+            raise
+
     
     def get_embedding_dimension(self) -> int:
         """Get the dimension of embeddings from this model"""

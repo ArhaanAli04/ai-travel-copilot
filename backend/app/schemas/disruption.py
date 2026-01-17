@@ -109,3 +109,73 @@ class DisruptionCaseListResponse(BaseModel):
     """Schema for list of disruption cases"""
     total: int
     cases: List[DisruptionCaseResponse]
+
+# ADD THESE NEW SCHEMAS:
+
+class ExplainRightsRequest(BaseModel):
+    """Request body for explain-rights endpoint"""
+    airline_code: Optional[str] = Field(None, description="IATA airline code (e.g., AA, BA)")
+    booking_class: Optional[str] = Field(None, description="Booking class (economy, business, first)")
+    insurance_provider: Optional[str] = Field(None, description="Travel insurance provider name")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "airline_code": "AA",
+                "booking_class": "economy",
+                "insurance_provider": "Allianz"
+            }
+        }
+
+
+class SourceLink(BaseModel):
+    """Source citation for policy information"""
+    title: str
+    url: str
+    type: str  # airline, regional, hotel, insurance
+    region: str
+
+
+class ExplainRightsResponse(BaseModel):
+    """Response from explain-rights endpoint"""
+    summary: str = Field(..., description="Plain-language summary of passenger rights")
+    rights_bullets: List[str] = Field(default=[], description="Actionable bullet points")
+    compensation_amount: Optional[int] = Field(None, description="Compensation amount (if applicable)")
+    compensation_currency: str = Field(default="USD", description="Currency code")
+    next_steps: List[str] = Field(default=[], description="What the passenger should do next")
+    source_links: List[SourceLink] = Field(default=[], description="Source citations")
+    cached: bool = Field(..., description="Whether data was retrieved from cache")
+    region: str = Field(..., description="Applicable region (EU, US, UK, etc.)")
+    applicable_regulation: str = Field(default="", description="Name of regulation (e.g., EU261)")
+    generated_at: str = Field(..., description="Timestamp of generation")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "summary": "You are entitled to €600 compensation under EU Regulation 261/2004 because your flight was cancelled less than 14 days before departure and the airline did not provide an alternative flight.",
+                "rights_bullets": [
+                    "Claim €600 compensation for cancellation",
+                    "Request full refund or alternative flight",
+                    "Claim reimbursement for meals and accommodation if needed"
+                ],
+                "compensation_amount": 600,
+                "compensation_currency": "EUR",
+                "next_steps": [
+                    "File a claim directly with the airline",
+                    "Keep all receipts for expenses",
+                    "Contact your credit card company if airline refuses"
+                ],
+                "source_links": [
+                    {
+                        "title": "EU Regulation 261/2004",
+                        "url": "https://europa.eu/...",
+                        "type": "regional",
+                        "region": "EU"
+                    }
+                ],
+                "cached": True,
+                "region": "EU",
+                "applicable_regulation": "EU Regulation 261/2004",
+                "generated_at": "2026-01-16T20:00:00"
+            }
+        }

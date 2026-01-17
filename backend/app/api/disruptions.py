@@ -16,10 +16,12 @@ from app.schemas.disruption import (
     DisruptionCaseWithOptions,
     DisruptionCaseListResponse,
     DisruptionOptionCreate,
-    DisruptionOptionResponse
+    DisruptionOptionResponse,
+    ExplainRightsRequest,
+    ExplainRightsResponse
 )
 from app.services.disruption_service import disruption_service  # ✅ ADD THIS IMPORT
-
+from app.ai.disruption_agent import disruption_agent
 
 router = APIRouter(prefix="/disruptions", tags=["disruptions"])
 logger = logging.getLogger(__name__)
@@ -341,3 +343,62 @@ def _detect_disruption_type(notes: str) -> DisruptionType:
         return DisruptionType.BAGGAGE_ISSUE
     else:
         return DisruptionType.OTHER
+
+
+
+@router.post("/{case_id}/explain-rights", response_model=ExplainRightsResponse)
+async def explain_passenger_rights(
+    case_id: int,
+    request: ExplainRightsRequest = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Explain passenger rights for a disruption case
+    
+    Uses:
+    - AI-powered analysis of airline policies
+    - Regional regulations (EU261, DOT, etc.)
+    - Cached policy documents (90-day TTL)
+    
+    Returns:
+    - Plain-language rights explanation
+    - Compensation amounts
+    - Actionable next steps
+    - Source citations
+    """
+    # Get disruption case
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Disruption case {case_id} not found"
+        )
+    
+    try:
+        # Use disruption agent to explain rights
+        if request:
+            explanation = await disruption_agent.explain_rights(
+                disruption_case=case,
+                airline_code=request.airline_code,
+                booking_class=request.booking_class,
+                insurance_provider=request.insurance_provider
+            )
+        else:
+            explanation = await disruption_agent.explain_rights(
+                disruption_case=case
+            )
+        
+        logger.info(f"✅ Explained rights for case {case_id}")
+        
+        return explanation
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to explain rights: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to explain rights: {str(e)}"
+        )

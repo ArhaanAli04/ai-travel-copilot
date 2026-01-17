@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     QDRANT_URL: str
     QDRANT_API_KEY: str
     QDRANT_COLLECTION_NAME: str = "travel_guides"
+    QDRANT_POLICIES_COLLECTION: str = "travel_policies"
+
     # AI - Google Gemini
     GEMINI_API_KEY: str
 
@@ -39,9 +41,14 @@ class Settings(BaseSettings):
     MAX_CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 100
     
+    POLICY_CACHE_TTL_DAYS: int = 90  # Policies expire after 90 days
+    POLICY_CHUNK_SIZE: int = 600  # Larger chunks for legal text
+    POLICY_CHUNK_OVERLAP: int = 100
+    
     # Web Search (NEW)
     WEB_SEARCH_PROVIDER: str = "serpapi"
     MAX_SEARCH_RESULTS: int = 7
+    MAX_POLICY_SEARCH_RESULTS: int = 5
 
     # Security
     SECRET_KEY: str
