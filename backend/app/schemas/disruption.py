@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from app.models.disruption import DisruptionType, DisruptionSeverity, OptionType
-
+from app.models.draft_message import MessageRecipientType, MessageTone
 
 # ===== DisruptionCase Schemas =====
 
@@ -179,3 +179,72 @@ class ExplainRightsResponse(BaseModel):
                 "generated_at": "2026-01-16T20:00:00"
             }
         }
+
+class SuggestOptionsResponse(BaseModel):
+    """Response for suggest-options endpoint"""
+    options: List["DisruptionOptionResponse"]
+    total_options: int
+    generated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class GenerateMessageRequest(BaseModel):
+    """Request for generate-message endpoint"""
+    option_id: Optional[int] = None  # Optional: which option this message is for
+    recipient_type: str
+    tone: str= "formal"
+    recipient_name: Optional[str] = None  # e.g., "British Airways"
+    
+    class Config:
+        use_enum_values = True
+
+
+class DraftMessageResponse(BaseModel):
+    """Response containing generated draft message"""
+    id: Optional[int] = None 
+    disruption_case_id: int
+    disruption_option_id: Optional[int]
+    recipient_type: str
+    recipient_name: Optional[str]
+    recipient_email: Optional[str]
+    subject: str
+    body: str
+    tone: str
+    language: str
+    attachments_needed: Optional[str]
+    next_steps: Optional[List[str]] = None  # Actionable next steps
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class AlternativeFlightDetail(BaseModel):
+    """Detailed flight information for alternative option"""
+    flight_number: str
+    airline: str
+    departure_time: datetime
+    arrival_time: datetime
+    duration_minutes: int
+    stops: int
+    price_amount: float
+    price_currency: str
+    price_difference: float  # Difference from original
+    booking_url: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class RefundDetail(BaseModel):
+    """Refund calculation details"""
+    ticket_refund: float
+    eu261_compensation: Optional[float]
+    additional_expenses: Optional[float]
+    total: float
+    currency: str
+    
+    class Config:
+        from_attributes = True

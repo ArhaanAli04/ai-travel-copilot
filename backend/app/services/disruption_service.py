@@ -414,6 +414,75 @@ class DisruptionService:
             db.rollback()
             raise
     
+
+    async def search_alternative_flights(
+        self,
+        origin_iata: str,
+        destination_iata: str,
+        departure_date: str,  # ISO format: "2026-01-18"
+        cabin_class: str = "economy",
+        max_results: int = 3
+    ) -> List[Dict]:
+        """
+        Search for alternative flights using SerpAPI Google Flights
+        
+        Args:
+            origin_iata: Origin airport IATA code (e.g., "LHR")
+            destination_iata: Destination airport IATA code (e.g., "CDG")
+            departure_date: Departure date in YYYY-MM-DD format
+            cabin_class: Cabin class (economy, business, first)
+            max_results: Maximum number of alternative flights to return
+            
+        Returns:
+            List of flight dictionaries with details
+        """
+        try:
+            logger.info(f"✈️ Searching alternative flights: {origin_iata} → {destination_iata} on {departure_date}")
+            
+            # Import flight service
+            from app.services.flight_service import search_flights_serpapi
+            
+            # Search flights using existing SerpAPI integration
+            flights = search_flights_serpapi(
+                origin=origin_iata,
+                destination=destination_iata,
+                departure_date=departure_date,
+                cabin_class=cabin_class,
+                max_stops=1,  # Allow 1 stop for more options
+                passengers=1,
+                trip_type="one_way"
+            )
+            
+            # Convert to dict format
+            alternative_flights = []
+            
+            for flight in flights[:max_results]:
+                alternative_flights.append({
+                    "flight_number": flight.flight_number,
+                    "airline": flight.airline,
+                    "airline_code": flight.airline_code,
+                    "departure_time": flight.departure_time.isoformat(),
+                    "arrival_time": flight.arrival_time.isoformat(),
+                    "duration_minutes": flight.duration_minutes,
+                    "stops": flight.stops,
+                    "layover_airports": flight.layover_airports,
+                    "cabin_class": flight.cabin_class,
+                    "price_amount": flight.price_amount,
+                    "price_currency": flight.price_currency,
+                    "booking_url": flight.booking_url,
+                    "aircraft_type": flight.aircraft_type,
+                    "amenities": flight.amenities or [],
+                    "source": "serpapi"
+                })
+            
+            logger.info(f"✅ Found {len(alternative_flights)} alternative flights")
+            return alternative_flights
+            
+        except Exception as e:
+            logger.error(f"❌ Alternative flight search failed: {e}")
+            # Return empty list instead of raising - allow other options to be generated
+            return []
+
     # ===== Helper Methods =====
     
     def _get_airport_coordinates(self, airport_code: str) -> Optional[Dict]:

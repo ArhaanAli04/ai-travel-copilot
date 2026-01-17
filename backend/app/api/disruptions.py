@@ -18,7 +18,10 @@ from app.schemas.disruption import (
     DisruptionOptionCreate,
     DisruptionOptionResponse,
     ExplainRightsRequest,
-    ExplainRightsResponse
+    ExplainRightsResponse,
+    SuggestOptionsResponse,
+    DraftMessageResponse,
+    GenerateMessageRequest
 )
 from app.services.disruption_service import disruption_service  # ✅ ADD THIS IMPORT
 from app.ai.disruption_agent import disruption_agent
@@ -26,6 +29,26 @@ from app.ai.disruption_agent import disruption_agent
 router = APIRouter(prefix="/disruptions", tags=["disruptions"])
 logger = logging.getLogger(__name__)
 
+
+# ===== Helper Functions =====
+def _detect_disruption_type(notes: str) -> DisruptionType:
+    """
+    Auto-detect disruption type from notes using simple keyword matching
+    """
+    notes_lower = notes.lower()
+    
+    if any(word in notes_lower for word in ["cancel", "cancelled"]):
+        return DisruptionType.CANCELLATION
+    elif any(word in notes_lower for word in ["delay", "delayed", "late"]):
+        return DisruptionType.DELAY
+    elif any(word in notes_lower for word in ["miss", "missed", "connecting"]):
+        return DisruptionType.MISSED_CONNECTION
+    elif any(word in notes_lower for word in ["overbook", "bump", "denied boarding"]):
+        return DisruptionType.OVERBOOKING
+    elif any(word in notes_lower for word in ["baggage", "luggage", "bag", "lost"]):
+        return DisruptionType.BAGGAGE_ISSUE
+    else:
+        return DisruptionType.OTHER
 
 @router.get("/api-usage")  # ✅ This will be: /api/disruptions/api-usage
 def get_api_usage():
@@ -324,28 +347,6 @@ async def refresh_disruption_case(
             detail=f"Failed to refresh case: {str(e)}"
         )
 
-# ===== Helper Functions =====
-def _detect_disruption_type(notes: str) -> DisruptionType:
-    """
-    Auto-detect disruption type from notes using simple keyword matching
-    """
-    notes_lower = notes.lower()
-    
-    if any(word in notes_lower for word in ["cancel", "cancelled"]):
-        return DisruptionType.CANCELLATION
-    elif any(word in notes_lower for word in ["delay", "delayed", "late"]):
-        return DisruptionType.DELAY
-    elif any(word in notes_lower for word in ["miss", "missed", "connecting"]):
-        return DisruptionType.MISSED_CONNECTION
-    elif any(word in notes_lower for word in ["overbook", "bump", "denied boarding"]):
-        return DisruptionType.OVERBOOKING
-    elif any(word in notes_lower for word in ["baggage", "luggage", "bag", "lost"]):
-        return DisruptionType.BAGGAGE_ISSUE
-    else:
-        return DisruptionType.OTHER
-
-
-
 @router.post("/{case_id}/explain-rights", response_model=ExplainRightsResponse)
 async def explain_passenger_rights(
     case_id: int,
@@ -402,3 +403,225 @@ async def explain_passenger_rights(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to explain rights: {str(e)}"
         )
+    
+
+@router.post("/{case_id}/suggest-options", response_model=SuggestOptionsResponse)
+async def suggest_disruption_options(
+    case_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate AI-powered alternative options for a disruption case
+    
+    Uses:
+    - Real flight search via SerpAPI
+    - Passenger rights calculation (Day 13)
+    - AI ranking with Gemini
+    
+    Returns:
+    - 3-5 ranked options (alternative flights, refunds, hotel, insurance)
+    - Each with pros/cons, costs, and action steps
+    """
+    # Get disruption case
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Disruption case {case_id} not found"
+        )
+    
+    try:
+        # Generate options using AI agent
+        options = await disruption_agent.suggest_options(
+            disruption_case=case,
+            db=db,
+            max_options=5
+        )
+        
+        if not options:
+            logger.warning(f"⚠️ No options generated for case {case_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate options. Please try again."
+            )
+        
+        # Convert to response format
+        from app.schemas.disruption import DisruptionOptionResponse
+        
+        option_responses = [
+            DisruptionOptionResponse.model_validate(opt) for opt in options
+        ]
+        
+        response = SuggestOptionsResponse(
+            options=option_responses,
+            total_options=len(option_responses),
+            generated_at=datetime.now(timezone.utc)
+        )
+        
+        logger.info(f"✅ Generated {len(options)} options for case {case_id}")
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to suggest options: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate options: {str(e)}"
+        )
+
+@router.post("/{case_id}/generate-message", response_model=DraftMessageResponse)
+async def generate_disruption_message(
+    case_id: int,
+    request: GenerateMessageRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate professional email/message for disruption resolution
+    
+    Supports:
+    - Airline refund/rebooking requests
+    - Hotel cancellation requests
+    - Insurance claim submissions
+    
+    Tone options:
+    - formal: Professional, neutral
+    - firm: Assertive, demanding rights
+    - friendly: Polite, cooperative
+    
+    Returns:
+    - Email subject and body
+    - Recipient contact info
+    - Required attachments
+    - Next steps
+    """
+    # Get disruption case
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Disruption case {case_id} not found"
+        )
+    
+    # Get option if specified
+    disruption_option = None
+    if request.option_id:
+        disruption_option = db.query(DisruptionOption).filter(
+            DisruptionOption.id == request.option_id,
+            DisruptionOption.disruption_case_id == case_id
+        ).first()
+        
+        if not disruption_option:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Option {request.option_id} not found for case {case_id}"
+            )
+        # ✅ FIX: Refresh to ensure meta_data is loaded
+        db.refresh(disruption_option)
+    try:
+        # Generate message using AI agent
+        message_data = await disruption_agent.generate_message(
+            disruption_case=case,
+            disruption_option=disruption_option,
+            recipient_type=request.recipient_type,
+            tone=request.tone,
+            recipient_name=request.recipient_name,
+            db=db
+        )
+        
+        # ✅ FIX: Handle case where generation failed
+        if not message_data or "error" in message_data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=message_data.get("error", "Failed to generate message")
+            )
+        
+        # Convert to response format
+        response = DraftMessageResponse(
+            id=message_data.get("id"),
+            disruption_case_id=case_id,
+            disruption_option_id=request.option_id,
+            recipient_type=message_data.get("recipient_type") or request.recipient_type,  # ✅ Fallback
+            recipient_name=message_data.get("recipient_name"),
+            recipient_email=message_data.get("recipient_email"),
+            subject=message_data.get("subject") or "Flight Disruption",  # ✅ Fallback
+            body=message_data.get("body") or "Message generation failed",  # ✅ Fallback
+            tone=message_data.get("tone") or request.tone,  # ✅ Fallback
+            language="en",
+            attachments_needed=str(message_data.get("attachments_needed", [])),
+            next_steps=message_data.get("next_steps", []),
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        logger.info(f"✅ Generated {request.tone} message to {request.recipient_type} for case {case_id}")
+        
+        return response
+    except HTTPException:
+        raise     
+    except Exception as e:
+        logger.error(f"❌ Failed to generate message: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate message: {str(e)}"
+        )
+
+@router.get("/{case_id}/messages", response_model=List[DraftMessageResponse])
+def get_draft_messages(
+    case_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all draft messages generated for a disruption case
+    
+    Returns history of all generated emails/messages
+    """
+    # Verify case exists
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Disruption case {case_id} not found"
+        )
+    
+    # Get all draft messages for this case
+    from app.models.draft_message import DraftMessage
+    
+    messages = db.query(DraftMessage).filter(
+        DraftMessage.disruption_case_id == case_id
+    ).order_by(DraftMessage.created_at.desc()).all()
+    
+    return [
+        DraftMessageResponse(
+            id=msg.id,
+            disruption_case_id=msg.disruption_case_id,
+            disruption_option_id=msg.disruption_option_id,
+            recipient_type=msg.recipient_type.value,
+            recipient_name=msg.recipient_name,
+            recipient_email=msg.recipient_email,
+            subject=msg.subject,
+            body=msg.body,
+            tone=msg.tone.value,
+            language=msg.language,
+            attachments_needed=msg.attachments_needed,
+            next_steps=None,  # Not stored in DB
+            created_at=msg.created_at
+        )
+        for msg in messages
+    ]
