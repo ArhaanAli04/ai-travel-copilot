@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Planner from './pages/Planner';
-
+import DisruptionPage from './pages/DisruptionPage'; 
 // Placeholder components (keep for future)
 const Home = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -19,15 +19,7 @@ const Home = () => (
   </div>
 );
 
-const Disruption = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="text-center px-8">
-      <h2 className="text-4xl font-bold text-white mb-4">🚨 Disruption Copilot</h2>
-      <p className="text-lg text-[#9CA3AF] mb-2">Handle flight delays, cancellations, and rerouting</p>
-      <p className="text-[#6B7280]">Coming soon in Day 11...</p>
-    </div>
-  </div>
-);
+
 
 const Local = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -55,7 +47,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/planner" element={<Planner />} />
-        <Route path="/disruption" element={<Disruption />} />
+        <Route path="/disruption" element={<DisruptionPage />} />
         <Route path="/local" element={<Local />} />
         <Route path="/safety" element={<Safety />} />
       </Routes>

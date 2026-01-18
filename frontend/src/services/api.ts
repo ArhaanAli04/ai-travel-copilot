@@ -326,4 +326,86 @@ export const dayApi = {
     return response.data;
   },
 };
+
+
+// ===== DISRUPTION API (Day 15) =====
+import type {
+  DisruptionCase,
+  CreateDisruptionRequest,
+  DisruptionOption,
+  PassengerRights,
+  DraftMessage,
+  GenerateMessageRequest,
+} from '../types/disruption';
+
+export const disruptionApi = {
+  // Create new disruption case
+  createCase: async (data: CreateDisruptionRequest): Promise<DisruptionCase> => {
+    const response = await api.post('/disruptions/', data);
+    return response.data;
+  },
+
+  // Get disruption case by ID
+  getCase: async (caseId: number): Promise<DisruptionCase> => {
+    const response = await api.get(`/disruptions/${caseId}`);
+    return response.data;
+  },
+
+  // List all disruption cases
+  listCases: async (userId?: number): Promise<{ total: number; cases: DisruptionCase[] }> => {
+    const params = userId ? { user_id: userId } : {};
+    const response = await api.get('/disruptions/', { params });
+    return response.data;
+  },
+
+  // Refresh flight/weather data
+  refreshCase: async (caseId: number): Promise<DisruptionCase> => {
+    const response = await api.post(`/disruptions/${caseId}/refresh`);
+    return response.data;
+  },
+
+  // Explain passenger rights
+  explainRights: async (
+    caseId: number,
+    options?: {
+      airline_code?: string;
+      booking_class?: string;
+      insurance_provider?: string;
+    }
+  ): Promise<PassengerRights> => {
+    const response = await api.post(`/disruptions/${caseId}/explain-rights`, options || {});
+    return response.data;
+  },
+
+  // Suggest resolution options
+  suggestOptions: async (caseId: number): Promise<{
+    options: DisruptionOption[];
+    total_options: number;
+    generated_at: string;
+  }> => {
+    const response = await api.post(`/disruptions/${caseId}/suggest-options`);
+    return response.data;
+  },
+
+  // Generate draft message
+  generateMessage: async (
+    caseId: number,
+    request: GenerateMessageRequest
+  ): Promise<DraftMessage> => {
+    const response = await api.post(`/disruptions/${caseId}/generate-message`, request);
+    return response.data;
+  },
+
+  // Get all draft messages for a case
+  getMessages: async (caseId: number): Promise<DraftMessage[]> => {
+    const response = await api.get(`/disruptions/${caseId}/messages`);
+    return response.data;
+  },
+
+  // Delete disruption case
+  deleteCase: async (caseId: number): Promise<void> => {
+    await api.delete(`/disruptions/${caseId}`);
+  },
+};
+
 export default api;
