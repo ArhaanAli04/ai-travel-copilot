@@ -33,8 +33,6 @@ export function TripSummaryV2({
   onUpdateTrip,
   onDeleteTrip,
   loading,
-  originCode,
-  destinationCodes,
 }: TripSummaryV2Props) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -356,8 +354,7 @@ const handleRegenerateItinerary = async () => {
         <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <FlightSection
             trip={trip}
-            originCode={originCode}
-            destinationCodes={destinationCodes}
+            
           />
         </div>
       )}

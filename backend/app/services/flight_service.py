@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# 
 
 def search_flights_serpapi(
     origin: str,
@@ -74,10 +75,15 @@ def _search_one_way_flights(
         "first": "4"
     }
     
+    # ✅ FIX: Handle City IDs (/m/...) vs IATA Codes
+    # Only uppercase if it looks like a standard 3-letter IATA code
+    dep_id = origin.upper() if len(origin) == 3 else origin
+    arr_id = destination.upper() if len(destination) == 3 else destination
+
     params = {
         "engine": "google_flights",
-        "departure_id": origin.upper(),
-        "arrival_id": destination.upper(),
+        "departure_id": dep_id,
+        "arrival_id": arr_id,
         "outbound_date": departure_date,
         "currency": "USD",
         "hl": "en",
@@ -90,7 +96,7 @@ def _search_one_way_flights(
     if max_stops is not None:
         params["stops"] = max_stops
     
-    logger.info(f"🔍 Searching {flight_direction} flights: {origin} → {destination} on {departure_date}")
+    logger.info(f"🔍 Searching {flight_direction} flights: {dep_id} → {arr_id} on {departure_date}")
     
     try:
         search = GoogleSearch(params)
@@ -104,7 +110,7 @@ def _search_one_way_flights(
         other_flights = results.get("other_flights", [])
         
         all_flights = best_flights + other_flights
-        all_flights = all_flights[:5]  # 5 flights per direction
+        all_flights = all_flights[:5]  # Limit to 5 flights per direction
         
         if not all_flights:
             logger.warning(f"⚠️ No flights found")
@@ -113,7 +119,8 @@ def _search_one_way_flights(
         parsed_flights = []
         for flight_data in all_flights:
             try:
-                parsed_flight = parse_serpapi_flight(flight_data, origin, destination)
+                # parsed_flight handles the extraction of specific airports from the result
+                parsed_flight = parse_serpapi_flight(flight_data)
                 if parsed_flight:
                     # Add direction indicator
                     parsed_flight.flight_direction = flight_direction
@@ -129,8 +136,7 @@ def _search_one_way_flights(
         raise Exception(f"Failed to search flights: {str(e)}")
 
 
-
-def parse_serpapi_flight(flight_data: dict, origin: str, destination: str) -> Optional[FlightSearchResponse]:
+def parse_serpapi_flight(flight_data: dict) -> Optional[FlightSearchResponse]:
     """
     Parse SerpAPI flight data into our FlightSearchResponse schema
     """
@@ -149,20 +155,29 @@ def parse_serpapi_flight(flight_data: dict, origin: str, destination: str) -> Op
         flight_number = first_leg.get("flight_number", "")
         
         # Extract departure info
-        departure_airport_code = first_leg.get("departure_airport", {}).get("id", origin)
+        # Note: Even if we searched by City ID, the result here will be a specific airport (e.g. LHR)
+        departure_airport_code = first_leg.get("departure_airport", {}).get("id")
         departure_airport_name = first_leg.get("departure_airport", {}).get("name", "")
         departure_time_str = first_leg.get("departure_airport", {}).get("time", "")
         departure_time = datetime.fromisoformat(departure_time_str.replace("Z", "+00:00"))
 
         # Extract arrival info  
-        arrival_airport_code = last_leg.get("arrival_airport", {}).get("id", destination)
+        arrival_airport_code = last_leg.get("arrival_airport", {}).get("id")
         arrival_airport_name = last_leg.get("arrival_airport", {}).get("name", "")
         arrival_time_str = last_leg.get("arrival_airport", {}).get("time", "")
         arrival_time = datetime.fromisoformat(arrival_time_str.replace("Z", "+00:00"))
 
-        # Get clean city names (use helper function or extract from airport name)
+        # Get clean city names
+        # We rely on the helper, but if it fails, we fall back to the airport name to avoid empty fields
         departure_city = get_city_name(departure_airport_code)
+        if departure_city == departure_airport_code:
+             # Fallback: extract city from airport name if possible (e.g. "Heathrow Airport" -> "London")
+             # This is a basic heuristic; a real app might use a geocoding DB.
+             departure_city = departure_airport_name.split(" ")[0] if departure_airport_name else departure_airport_code
+
         arrival_city = get_city_name(arrival_airport_code)
+        if arrival_city == arrival_airport_code:
+             arrival_city = arrival_airport_name.split(" ")[0] if arrival_airport_name else arrival_airport_code
 
         
         # Calculate duration
@@ -242,35 +257,33 @@ def parse_serpapi_flight(flight_data: dict, origin: str, destination: str) -> Op
         return None
 
 
-# Keep the helper functions from before
 def get_city_name(airport_code: str) -> str:
-    """Map airport codes to city names"""
+    """
+    Map airport codes to city names.
+    Expanded slightly, but now serves as a 'best effort' mapper.
+    """
+    if not airport_code:
+        return ""
+        
     city_map = {
-        "BOM": "Mumbai",
-        "DEL": "Delhi",
-        "CDG": "Paris",
-        "FCO": "Rome",
-        "BCN": "Barcelona",
-        "LHR": "London",
-        "JFK": "New York",
-        "DXB": "Dubai",
+        "BOM": "Mumbai", "DEL": "Delhi", "BLR": "Bangalore", "MAA": "Chennai",
+        "CDG": "Paris", "ORY": "Paris",
+        "FCO": "Rome", "CIA": "Rome",
+        "LHR": "London", "LGW": "London", "STN": "London", "LCY": "London",
+        "JFK": "New York", "EWR": "New York", "LGA": "New York",
+        "DXB": "Dubai", "AUH": "Abu Dhabi",
         "SIN": "Singapore",
-        "HND": "Tokyo",
-        "AUS": "Austin",
-        "LAX": "Los Angeles",
-        "SFO": "San Francisco",
+        "HND": "Tokyo", "NRT": "Tokyo",
+        "SYD": "Sydney", "MEL": "Melbourne",
+        "LAX": "Los Angeles", "SFO": "San Francisco", "SEA": "Seattle",
+        "ORD": "Chicago", "MIA": "Miami", "ATL": "Atlanta"
     }
     return city_map.get(airport_code.upper(), airport_code.upper())
 
 def search_airports(query: str) -> List[dict]:
     """
-    Search for airports using SerpAPI autocomplete
-    
-    Args:
-        query: Search query (city name, airport name, or code)
-        
-    Returns:
-        List of airport suggestions with code, name, and location
+    Search for airports/cities using SerpAPI Google Flights Autocomplete
+    Returns: List of suggestions with id (IATA or Knowledge Graph ID), name, and type
     """
     
     if not settings.SERPAPI_KEY:
@@ -283,30 +296,38 @@ def search_airports(query: str) -> List[dict]:
     params = {
         "engine": "google_flights_autocomplete",
         "q": query,
-        "api_key": settings.SERPAPI_KEY
+        "api_key": settings.SERPAPI_KEY,
+        "hl": "en",
+        "gl": "us"
     }
     
     try:
         search = GoogleSearch(params)
         results = search.get_dict()
         
-        airports = results.get("airport_suggestions", [])
+        # SerpAPI often returns 'suggestions', but sometimes 'airport_suggestions'
+        suggestions = results.get("suggestions", results.get("airport_suggestions", []))
         
-        # Format results
         formatted = []
-        for airport in airports[:10]:  # Limit to 10 results
+        for item in suggestions[:10]:
+            # Google Flights Autocomplete returns 'id' (IATA or /m/xxx) and 'name'
+            
+            # Determine if it is a specific airport or a city (All Airports)
+            # Cities usually start with '/m/'
+            is_city = item.get("id", "").startswith("/m/")
+            
             formatted.append({
-                "code": airport.get("id"),
-                "name": airport.get("name"),
-                "city": airport.get("city", {}).get("name"),
-                "country": airport.get("country", {}).get("name"),
-                "display": f"{airport.get('name')} ({airport.get('id')})"
+                "code": item.get("id"),
+                "name": item.get("value", item.get("name")),
+                "city": item.get("value", item.get("name")), 
+                "country": item.get("country"),
+                "type": "City" if is_city else "Airport",
+                "display": f"{item.get('value')} ({item.get('id')})"
             })
         
-        logger.info(f"✅ Found {len(formatted)} airports for query: {query}")
+        logger.info(f"✅ Found {len(formatted)} locations for query: {query}")
         return formatted
         
     except Exception as e:
         logger.error(f"❌ Failed to search airports: {e}")
         return []
-

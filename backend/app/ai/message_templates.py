@@ -114,6 +114,56 @@ Sincerely,
 [Your Name]
 """
 
+AIRLINE_ALTERNATIVE_FORMAL="""Dear {recipient_name},
+
+I am writing to request rebooking assistance for my disrupted flight {original_flight_number} from {origin} to {destination}, originally scheduled for {original_date}.
+
+I would like to request rebooking on the following alternative flight:
+- Flight Number: {alternative_flight_number}
+- Departure: {alternative_departure_time}
+- Date: {alternative_date}
+
+My booking reference is {pnr}. Please confirm availability and any applicable fare differences.
+
+I appreciate your prompt assistance with this matter.
+
+Sincerely,
+[Your Name]
+
+"""
+
+AIRLINE_ALTERNATIVE_FIRM="""To Whom It May Concern,
+
+I am writing regarding the disruption of my flight {original_flight_number} from {origin} to {destination} on {original_date}.
+
+I require immediate rebooking on flight {alternative_flight_number} departing at {alternative_departure_time}. As this disruption was caused by {disruption_reason}, I expect the airline to accommodate this change without additional charges.
+
+My booking reference: {pnr}
+
+Please confirm this rebooking within 24 hours. I am entitled to alternative transportation under {regulation}.
+
+Regards,
+[Your Name]
+
+"""
+
+AIRLINE_ALTERNATIVE_FRIENDLY="""Hello {recipient_name},
+
+I hope this message finds you well! I'm reaching out regarding my flight {original_flight_number} from {origin} to {destination} that was {disruption_type}.
+
+I found an alternative flight that would work perfectly for my schedule:
+- Flight {alternative_flight_number}
+- Departing at {alternative_departure_time}
+- On {alternative_date}
+
+Could you please help me rebook on this flight? My booking reference is {pnr}.
+
+Thanks so much for your assistance!
+
+Best regards,
+[Your Name]
+
+"""
 # ===== HOTEL TEMPLATES =====
 
 HOTEL_CANCELLATION_FORMAL = """Dear {hotel_name} Reservations,
@@ -243,6 +293,10 @@ TEMPLATES = {
     ("airline", "rebooking", "friendly"): AIRLINE_REBOOKING_FORMAL,  # Reuse formal
     ("airline", "rebooking", "firm"): AIRLINE_REBOOKING_FORMAL,
     
+    ("airline", "alternative_flight", "formal"):AIRLINE_ALTERNATIVE_FORMAL,
+    ("airline", "alternative_flight", "firm"):AIRLINE_ALTERNATIVE_FIRM,
+    ("airline", "alternative_flight", "friendly"):AIRLINE_ALTERNATIVE_FRIENDLY,
+
     ("hotel", "cancellation", "formal"): HOTEL_CANCELLATION_FORMAL,
     ("hotel", "cancellation", "friendly"): HOTEL_CANCELLATION_FRIENDLY,
     ("hotel", "cancellation", "firm"): HOTEL_CANCELLATION_FORMAL,  # Reuse formal

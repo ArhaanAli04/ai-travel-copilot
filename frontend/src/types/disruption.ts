@@ -157,20 +157,21 @@ export interface PassengerRights {
 }
 
 export interface DraftMessage {
-  id?: number;
+  id: number;  // ✅ Remove optional (backend always returns this)
   disruption_case_id: number;
-  disruption_option_id?: number;
-  recipient_type: 'airline' | 'hotel' | 'insurance';
-  recipient_name?: string;
-  recipient_email?: string;
+  disruption_option_id?: number | null;
+  recipient_type: string;  // ✅ Change from union to string (backend returns 'AIRLINE', 'HOTEL', etc.)
+  recipient_name?: string | null;
+  recipient_email?: string | null;
   subject: string;
   body: string;
-  tone: 'formal' | 'firm' | 'friendly';
+  tone: string;  // ✅ Change from union to string (backend returns 'FORMAL', 'FIRM', etc.)
   language: string;
-  attachments_needed?: string;
+  attachments_needed?: string | null;
   next_steps?: string[];
-  created_at?: string;
+  created_at: string;  // ✅ Remove optional (backend always returns this)
 }
+
 
 // Request types
 export interface CreateDisruptionRequest {

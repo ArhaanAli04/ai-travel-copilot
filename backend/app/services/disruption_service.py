@@ -448,10 +448,22 @@ class DisruptionService:
                 destination=destination_iata,
                 departure_date=departure_date,
                 cabin_class=cabin_class,
-                max_stops=1,  # Allow 1 stop for more options
+                max_stops=0,  # Allow 1 stop for more options
                 passengers=1,
                 trip_type="one_way"
             )
+
+            if not flights:
+                logger.info("⚠️ No direct flights found, searching with 1 stop...")
+                flights = search_flights_serpapi(
+                    origin=origin_iata,
+                    destination=destination_iata,
+                    departure_date=departure_date,
+                    cabin_class=cabin_class,
+                    max_stops=1,
+                    passengers=1,
+                    trip_type="one_way"
+                )
             
             # Convert to dict format
             alternative_flights = []

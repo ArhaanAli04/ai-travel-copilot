@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Path,Query
+from fastapi import APIRouter, Depends, HTTPException,Query
+from fastapi import Path as PathParam
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.postgres import get_db
@@ -10,16 +11,73 @@ from app.schemas.flight import (
     FlightSelect,
     FlightResponse
 )
-from app.services.flight_service import search_flights_serpapi,get_city_name
+from app.services.flight_service import search_flights_serpapi,search_airports,get_city_name
 import logging
+import json
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/trips", tags=["Flights"])
 
+
+# Load airports data once at module level
+AIRPORTS_DATA = None
+
+def load_airports_data():
+    """Load airports data from JSON file (cached)"""
+    global AIRPORTS_DATA
+    if AIRPORTS_DATA is None:
+        airports_file = Path(__file__).parent.parent / "data" / "airports.json"
+        with open(airports_file, 'r', encoding='utf-8') as f:
+            AIRPORTS_DATA = json.load(f)
+    return AIRPORTS_DATA
+
+def get_airport_code(city_or_code: str) -> str:
+    """
+    Convert city name to IATA airport code or Google Knowledge Graph ID (/m/...)
+    Prioritizes SerpAPI for city resolution to handle 'All Airports' correctly.
+    """
+    if not city_or_code:
+        raise HTTPException(status_code=400, detail="City or airport code is required")
+    
+    city_or_code = city_or_code.strip()
+    
+    # 1. Fast Path: If it looks like a 3-letter IATA code, use it directly.
+    # We assume standard IATA codes are 3 uppercase letters.
+    if len(city_or_code) == 3 and city_or_code.isalpha():
+        return city_or_code.upper()
+    
+    # 2. SerpAPI Search: Ask Google what this place is.
+    # This returns specific airports (JFK) OR City IDs (/m/02_286)
+    try:
+        logger.info(f"🔍 Resolving location via SerpAPI: {city_or_code}")
+        results = search_airports(city_or_code)
+        
+        if results:
+            # Prefer the first result as it is the most relevant according to Google
+            best_match = results[0]
+            code = best_match["code"] # This might be "LHR" or "/m/04jpl"
+            name = best_match["name"]
+            
+            logger.info(f"✅ Resolved '{city_or_code}' → {code} ({name})")
+            return code
+            
+    except Exception as e:
+        logger.warning(f"⚠️ SerpAPI resolution failed: {e}")
+
+    # 3. Fallback / Error
+    # If we couldn't resolve it, we can't search for flights.
+    raise HTTPException(
+        status_code=400, 
+        detail=f"Could not resolve city/airport for '{city_or_code}'"
+    )
+
+
 @router.post("/{trip_id}/flights/search", response_model=List[FlightSearchResponse])
 async def search_flights(
-    trip_id: int = Path(..., description="Trip ID"),
+    trip_id: int = PathParam(..., description="Trip ID"),
     search_params: FlightSearchRequest = None,
     db: Session = Depends(get_db)
 ):
@@ -61,6 +119,9 @@ async def search_flights(
                 cabin_class=trip.flight_preferences.get("cabin_class", "economy") if trip.flight_preferences else "economy",
                 max_stops=trip.flight_preferences.get("max_stops") if trip.flight_preferences else None
             )
+        else:
+            search_params.origin = get_airport_code(search_params.origin)
+            search_params.destination = get_airport_code(search_params.destination)    
         
         #  Determine trip type from search params
         trip_type = "one_way"
@@ -88,12 +149,14 @@ async def search_flights(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to search flights: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to search flights: {str(e)}")
 
 
 @router.post("/{trip_id}/flights/select", response_model=FlightResponse, status_code=201)
 async def select_flight(
-    trip_id: int = Path(..., description="Trip ID"),
+    trip_id: int = PathParam(..., description="Trip ID"),
     flight_select: FlightSelect = None,
     db: Session = Depends(get_db)
 ):
@@ -150,8 +213,8 @@ async def select_flight(
 
 @router.delete("/{trip_id}/flights/{flight_id}", status_code=204)
 async def delete_flight(
-    trip_id: int = Path(..., description="Trip ID"),
-    flight_id: int = Path(..., description="Flight ID"),
+    trip_id: int = PathParam(..., description="Trip ID"),
+    flight_id: int = PathParam(..., description="Flight ID"),
     db: Session = Depends(get_db)
 ):
     """
@@ -194,7 +257,7 @@ async def delete_flight(
 
 @router.get("/{trip_id}/flights", response_model=List[FlightResponse])
 async def get_trip_flights(
-    trip_id: int = Path(..., description="Trip ID"),
+    trip_id: int = PathParam(..., description="Trip ID"),
     db: Session = Depends(get_db)
 ):
     """
@@ -216,21 +279,6 @@ async def get_trip_flights(
         raise HTTPException(status_code=500, detail=f"Failed to get flights: {str(e)}")
 
 
-def get_airport_code(city_name: str) -> str:
-    """Convert city name to airport code (mock mapping)"""
-    airport_map = {
-        "mumbai": "BOM",
-        "delhi": "DEL",
-        "paris": "CDG",
-        "rome": "FCO",
-        "barcelona": "BCN",
-        "london": "LHR",
-        "new york": "JFK",
-        "dubai": "DXB",
-        "singapore": "SIN",
-        "tokyo": "HND",
-    }
-    return airport_map.get(city_name.lower(), "XXX")
 
 @router.get("/airports/search", response_model=List[dict])
 async def search_airports_endpoint(
@@ -250,3 +298,70 @@ async def search_airports_endpoint(
         logger.error(f"❌ Failed to search airports: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to search airports: {str(e)}")
 
+@router.get("/airports/by-city", response_model=List[dict])
+async def get_airports_by_city(
+    city: str = Query(..., min_length=2, description="City name")
+):
+    """
+    Get all airports for a given city grouped by country
+    Returns list of airports with country info for user selection
+    """
+    try:
+        from collections import defaultdict
+        
+        airports = load_airports_data()
+        search_term = city.lower().strip()
+        
+        # Group airports by country
+        country_airports = defaultdict(list)
+        
+        for code, airport in airports.items():
+            if not airport.get("iata"):
+                continue
+            
+            airport_city = airport.get("city", "").lower()
+            
+            # Exact match only
+            if airport_city == search_term:
+                country = airport.get("country", "").upper()
+                airport_name = airport.get("name", "")
+                
+                # Skip small airports
+                if any(word in airport_name.lower() for word in ["seaplane", "heliport", "ultralight"]):
+                    continue
+                
+                country_airports[country].append({
+                    "iata": airport["iata"],
+                    "name": airport_name,
+                    "city": airport["city"],
+                    "country": country,
+                    "state": airport.get("state", ""),
+                    "elevation": airport.get("elevation", 0)
+                })
+        
+        # Format response
+        result = []
+        for country, airports_list in country_airports.items():
+            # Sort by importance (prefer international, lower elevation)
+            airports_list.sort(key=lambda a: (
+                "international" not in a["name"].lower(),
+                "regional" in a["name"].lower(),
+                a["elevation"]
+            ))
+            
+            for airport in airports_list:
+                result.append({
+                    "code": airport["iata"],
+                    "name": airport["name"],
+                    "city": airport["city"],
+                    "country": country,
+                    "state": airport["state"],
+                    "display": f"{airport['city']}, {country} ({airport['iata']}) - {airport['name']}"
+                })
+        
+        logger.info(f"📋 Found {len(result)} airports for '{city}' in {len(country_airports)} countries")
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get airports for city: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get airports: {str(e)}")

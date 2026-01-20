@@ -6,6 +6,10 @@ import WeatherAlertCard from '../components/WeatherAlertCard';
 import RightsSummaryCard from '../components/RightsSummaryCard';
 import { disruptionApi } from '../services/api'; // ✅ 
 import type { DisruptionCase } from '../types/disruption'; // 
+import AlternativeFlightsGrid from '../components/AlternativeFlightsGrid';
+import OptionsGrid from '../components/OptionsGrid';
+import DraftMessageCard from '../components/DraftMessageCard';
+import ChatWidget from '../components/ChatWidget';
 
 const DisruptionPage: React.FC = () => {
   const [showDashboard, setShowDashboard] = useState(false);
@@ -87,28 +91,24 @@ const DisruptionPage: React.FC = () => {
 
             {/* Center - Action Cards (50%) */}
             <div className="lg:col-span-6 space-y-4">
-                <div className="bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl p-6">
-                <h3 className="text-white font-semibold mb-4">✈️ Alternative Flights</h3>
-                <p className="text-gray-400 text-sm">Day 15B - Coming next...</p>
-                </div>
+                
 
-                <div className="bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl p-6">
-                <h3 className="text-white font-semibold mb-4">💡 Your Options</h3>
-                <p className="text-gray-400 text-sm">Day 15B - Coming next...</p>
-                </div>
+                {disruptionData && (
+                    <>
+                        <AlternativeFlightsGrid disruptionCase={disruptionData} />
+                        <OptionsGrid disruptionCase={disruptionData} />
+                        <DraftMessageCard disruptionCase={disruptionData} />
+                    </>
+                    )}
 
-                <div className="bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl p-6">
-                <h3 className="text-white font-semibold mb-4">📧 Draft Messages</h3>
-                <p className="text-gray-400 text-sm">Day 15B - Coming next...</p>
-                </div>
+                
             </div>
 
             {/* Right Sidebar - Chat Widget (20%) */}
             <div className="lg:col-span-3">
-                <div className="bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl p-6 sticky top-24">
-                <h3 className="text-white font-semibold mb-4">💬 AI Assistant</h3>
-                <p className="text-gray-400 text-sm">Day 15B - Coming next...</p>
-                </div>
+                {disruptionData && (
+                    <ChatWidget disruptionCase={disruptionData} />
+                )}
             </div>
             </div>
         </div>

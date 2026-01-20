@@ -1,23 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Plane, Search, CheckCircle, AlertCircle, X } from 'lucide-react';
-import { type Trip, type Flight, type FlightSearchParams, flightApi } from '../services/api';
+import { type Trip, type Flight, flightApi } from '../services/api';
 import FlightSearchResults from './FlightSearchResults';
-import ConfirmModal from './ConfirmModal'; // ✅ Import modal
+import FlightSearchModal from './FlightSearchModal'; // ✅ NEW IMPORT
+import ConfirmModal from './ConfirmModal';
 
 interface FlightSectionProps {
   trip: Trip;
-  originCode: string;
-  destinationCodes: string[];
 }
 
-const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProps) => {
+const FlightSection = ({ trip }: FlightSectionProps) => {
   const [showFlightSearch, setShowFlightSearch] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false); // ✅ NEW STATE
   const [flights, setFlights] = useState<Flight[]>([]);
   const [selectedFlights, setSelectedFlights] = useState<Flight[]>([]);
   const [loadingFlights, setLoadingFlights] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // ✅ Modal state
+  // Modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [flightToDelete, setFlightToDelete] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -31,35 +31,11 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
     }
   }, [trip.flights]);
 
-  // Search for flights
-  const handleFlightSearch = async () => {
-    setLoadingFlights(true);
-    setError(null);
-    try {
-      const tripType = trip.flight_preferences?.trip_type || 'one_way';
-
-      const searchParams: FlightSearchParams = {
-        origin: originCode || 'BOM',
-        destination: destinationCodes[0] || 'DEL',
-        departure_date: trip.start_date.split('T')[0],
-        return_date: tripType === 'round_trip' ? trip.end_date.split('T')[0] : undefined,
-        passengers: trip.traveler_count,
-        cabin_class: (trip.flight_preferences?.cabin_class as any) || 'economy',
-        max_stops: trip.flight_preferences?.max_stops,
-      };
-
-      console.log('🔍 Searching flights with params:', searchParams);
-
-      const flightResults = await flightApi.searchFlights(trip.id, searchParams);
-      setFlights(flightResults);
-      setShowFlightSearch(true);
-      console.log('✅ Found flights:', flightResults);
-    } catch (err: any) {
-      console.error('❌ Error searching flights:', err);
-      setError(err.response?.data?.detail || 'Failed to search flights');
-    } finally {
-      setLoadingFlights(false);
-    }
+  // ✅ NEW: Handle search completion from modal
+  const handleSearchComplete = (flightResults: Flight[]) => {
+    setFlights(flightResults);
+    setShowFlightSearch(true);
+    console.log('✅ Search complete:', flightResults.length, 'flights found');
   };
 
   // Select a flight
@@ -79,13 +55,13 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
     }
   };
 
-  // ✅ Open delete confirmation
+  // Open delete confirmation
   const openDeleteModal = (flightId: number) => {
     setFlightToDelete(flightId);
     setShowDeleteModal(true);
   };
 
-  // ✅ Confirm delete
+  // Confirm delete
   const confirmDelete = async () => {
     if (!flightToDelete) return;
 
@@ -246,28 +222,16 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
         </div>
       )}
 
-      {/* Search Button / Results */}
+      {/* ✅ CHANGED: Button now opens modal instead of searching directly */}
       {!showFlightSearch ? (
         <button
-          onClick={handleFlightSearch}
-          disabled={loadingFlights}
-          className={`px-6 py-3 rounded-xl font-bold text-white transition-all ${
-            loadingFlights
-              ? 'bg-[#6B7280] cursor-not-allowed'
-              : 'bg-[#38BDF8] hover:bg-[#0EA5E9] hover:scale-105 active:scale-95'
-          }`}
+          onClick={() => setShowSearchModal(true)} // ✅ Open modal
+          className="px-6 py-3 rounded-xl font-bold text-white bg-[#38BDF8] hover:bg-[#0EA5E9] hover:scale-105 active:scale-95 transition-all"
         >
-          {loadingFlights ? (
-            <span className="flex items-center gap-2">
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Searching Flights...
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <Search className="w-5 h-5" />
-              {selectedFlights.length > 0 ? 'Search Different Flights' : 'Search Flights'}
-            </span>
-          )}
+          <span className="flex items-center gap-2">
+            <Search className="w-5 h-5" />
+            {selectedFlights.length > 0 ? 'Search Different Flights' : 'Search Flights'}
+          </span>
         </button>
       ) : (
         <FlightSearchResults
@@ -278,7 +242,15 @@ const FlightSection = ({ trip, originCode, destinationCodes }: FlightSectionProp
         />
       )}
 
-      {/* ✅ Delete Confirmation Modal */}
+      {/* ✅ NEW: Flight Search Modal */}
+      <FlightSearchModal
+        trip={trip}
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onSearchComplete={handleSearchComplete}
+      />
+
+      {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={showDeleteModal}
         onClose={() => {

@@ -248,3 +248,25 @@ class RefundDetail(BaseModel):
     
     class Config:
         from_attributes = True
+
+# ===== CHAT SCHEMAS =====
+
+class ChatMessage(BaseModel):
+    """Single chat message"""
+    role: str  # "user" or "assistant"
+    content: str
+    timestamp: Optional[datetime] = None
+
+class ChatRequest(BaseModel):
+    """Request to chat with AI assistant"""
+    message: str
+    history: Optional[List[ChatMessage]] = None
+
+class ChatResponse(BaseModel):
+    """Response from AI assistant"""
+    response: str
+    case_id: int
+    timestamp: datetime
+    
+    class Config:
+        from_attributes = True

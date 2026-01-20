@@ -578,6 +578,91 @@ async def generate_disruption_message(
             detail=f"Failed to generate message: {str(e)}"
         )
 
+from app.schemas.disruption import ChatRequest, ChatResponse
+
+@router.post("/{case_id}/chat", response_model=ChatResponse)
+async def chat_with_assistant(
+    case_id: int,
+    request: ChatRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Chat with AI assistant about disruption case
+    
+    Provides:
+    - Context-aware responses about rights, options, flights
+    - Multi-turn conversation with history
+    - Integration with RAG system for policy lookups
+    """
+    # Get disruption case
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Disruption case {case_id} not found"
+        )
+    
+    try:
+        # Use disruption agent to handle chat
+        response_text = await disruption_agent.chat(
+            disruption_case=case,
+            user_message=request.message,
+            conversation_history=request.history or [],
+            db=db
+        )
+        
+        return ChatResponse(
+            response=response_text,
+            case_id=case_id,
+            timestamp=datetime.now(timezone.utc)
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Chat failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat failed: {str(e)}"
+        )
+
+
+@router.get("/{case_id}/chat-history")
+async def get_chat_history(
+    case_id: int,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """
+    Get chat history for a disruption case
+    
+    Returns recent conversation messages
+    """
+    # Verify case exists
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Disruption case {case_id} not found"
+        )
+    
+    # For now, return empty history (Day 16 will add DB persistence)
+    # This allows the chat to work without DB schema changes today
+    return {
+        "messages": [],
+        "case_id": case_id,
+        "total": 0
+    }
+
 @router.get("/{case_id}/messages", response_model=List[DraftMessageResponse])
 def get_draft_messages(
     case_id: int,
@@ -607,21 +692,26 @@ def get_draft_messages(
         DraftMessage.disruption_case_id == case_id
     ).order_by(DraftMessage.created_at.desc()).all()
     
-    return [
-        DraftMessageResponse(
-            id=msg.id,
-            disruption_case_id=msg.disruption_case_id,
-            disruption_option_id=msg.disruption_option_id,
-            recipient_type=msg.recipient_type.value,
-            recipient_name=msg.recipient_name,
-            recipient_email=msg.recipient_email,
-            subject=msg.subject,
-            body=msg.body,
-            tone=msg.tone.value,
-            language=msg.language,
-            attachments_needed=msg.attachments_needed,
-            next_steps=None,  # Not stored in DB
-            created_at=msg.created_at
+     #  Convert to response format properly
+    response_list = []
+    for msg in messages:
+        response_list.append(
+            DraftMessageResponse(
+                id=msg.id,
+                disruption_case_id=msg.disruption_case_id,
+                disruption_option_id=msg.disruption_option_id,
+                recipient_type=msg.recipient_type.value if hasattr(msg.recipient_type, 'value') else msg.recipient_type,
+                recipient_name=msg.recipient_name,
+                recipient_email=msg.recipient_email,
+                subject=msg.subject,
+                body=msg.body,
+                tone=msg.tone.value if hasattr(msg.tone, 'value') else msg.tone,
+                language=msg.language,
+                attachments_needed=msg.attachments_needed,
+                next_steps=None,  # Not stored in DB
+                created_at=msg.created_at
+            )
         )
-        for msg in messages
-    ]
+    
+    logger.info(f"✅ Returning {len(response_list)} draft messages for case {case_id}")
+    return response_list

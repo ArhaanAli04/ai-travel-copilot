@@ -11,7 +11,7 @@ from datetime import datetime,timezone,timedelta
 import logging
 from google import genai
 from google.genai import types
-
+import json
 from app.core.config import settings
 from app.ai.retrievers import create_rights_retriever
 from app.models.disruption import DisruptionCase, DisruptionType,DisruptionOption
@@ -643,6 +643,42 @@ NEXT_STEPS:
             from app.models.draft_message import DraftMessage, MessageRecipientType, MessageTone
             import json
             
+            # ✅ ADD THIS BLOCK - Deduplication check
+            if db:
+                
+                # Check for duplicate drafts created in last 5 minutes
+                five_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+                
+                try:
+                    existing_draft = db.query(DraftMessage).filter(
+                        DraftMessage.disruption_case_id == disruption_case.id,
+                        DraftMessage.recipient_type == MessageRecipientType(recipient_type.upper()),
+                        DraftMessage.tone == MessageTone(tone.upper()),
+                        DraftMessage.created_at >= five_minutes_ago
+                    ).first()
+                    
+                    if existing_draft:
+                        age_seconds = int((datetime.now(timezone.utc) - existing_draft.created_at).total_seconds())
+                        logger.info(f"♻️ Reusing recent {tone} draft {existing_draft.id} (created {age_seconds}s ago)")
+                        
+                        # Return existing draft
+                        return {
+                            "id": existing_draft.id,
+                            "subject": existing_draft.subject,
+                            "body": existing_draft.body,
+                            "recipient_type": existing_draft.recipient_type.value,
+                            "recipient_name": existing_draft.recipient_name,
+                            "recipient_email": existing_draft.recipient_email,
+                            "tone": existing_draft.tone.value,
+                            "attachments_needed": json.loads(existing_draft.attachments_needed) if existing_draft.attachments_needed else [],
+                            "next_steps": [],
+                            "generated_at": existing_draft.created_at.isoformat()
+                        }
+                except Exception as dedupe_error:
+                    logger.warning(f"⚠️ Deduplication check failed: {dedupe_error}")
+                    # Continue with generation if check fails
+            # END OF DEDUPLICATION BLOCK
+
             # 1. Determine message type based on option or disruption
             message_type = self._determine_message_type(disruption_option, disruption_case)
             
@@ -1056,6 +1092,16 @@ NEXT_STEPS:
                 cabin_class="economy",
                 max_results=3
             )
+
+            # ✅ ADD THIS - Log what SerpAPI returned
+            logger.info(f"🔍 SerpAPI returned flights:")
+            for idx, flight in enumerate(alternative_flights):
+                logger.info(f"  Flight {idx+1}: {flight['flight_number']}")
+                logger.info(f"    Departure: {flight['departure_time']}")
+                logger.info(f"    Arrival: {flight['arrival_time']}")
+                logger.info(f"    Duration: {flight['duration_minutes']} minutes ({flight['duration_minutes']/60:.1f} hours)")
+                logger.info(f"    Stops: {flight['stops']}")
+                logger.info(f"    Price: ${flight['price_amount']}")
             
             if not alternative_flights:
                 logger.warning("⚠️ No alternative flights found")
@@ -1107,7 +1153,7 @@ NEXT_STEPS:
                     ai_reasoning=f"Alternative flight with {flight['stops']} stop(s), duration {flight['duration_minutes']}min"
                     
                 )
-                option.meta_data = {
+                option.meta_data =json.dumps( {
                     "flight_details": {
                         "flight_number": flight["flight_number"],
                         "airline": flight["airline"],
@@ -1122,7 +1168,7 @@ NEXT_STEPS:
                     "pros": pros,
                     "cons": cons,
                     "recommended": i == 0
-                }
+                })
                 db.add(option)
                 flight_options.append(option)
             
@@ -1451,6 +1497,120 @@ NEXT_STEPS:
             logger.error(f"❌ AI ranking failed: {e}")
             # Fallback: sort by estimated_cost (most savings first)
             return sorted(options, key=lambda x: x.estimated_cost)
+
+    async def chat(
+        self,
+        disruption_case: DisruptionCase,
+        user_message: str,
+        conversation_history: List = None,
+        db: Session = None
+    ) -> str:
+        """
+        Chat with user about their disruption case
+        
+        Provides context-aware responses using:
+        - Case details (flight, dates, status)
+        - Passenger rights (EU261, DOT, etc.)
+        - Available options (flights, refunds, hotels)
+        - Policy documents from RAG
+        """
+        logger.info(f"💬 Chat for case {disruption_case.id}: {user_message[:50]}...")
+        
+        try:
+            # Build context about the case
+            case_context = f"""
+    Current Disruption Case:
+    - Flight: {disruption_case.flight_number} ({disruption_case.airline})
+    - Route: {disruption_case.origin} → {disruption_case.destination}
+    - Date: {disruption_case.disruption_date.strftime('%B %d, %Y')}
+    - Status: {disruption_case.current_status}
+    - Severity: {disruption_case.severity.value}
+    - Type: {disruption_case.disruption_type.value}
+    """
+            
+            # Get rights explanation
+            try:
+                rights = await self.explain_rights(disruption_case)
+                rights_context = f"""
+    Passenger Rights:
+    - Regulation: {rights.get('applicable_regulation', 'Unknown')}
+    - Compensation: {rights.get('compensation_currency', '')}{rights.get('compensation_amount', 0) or 'Not eligible'}
+    - Key Rights: {', '.join(rights.get('rights_bullets', [])[:3])}
+    """
+            except:
+                rights_context = "Passenger rights information not available."
+            
+            # Get available options
+            try:
+                options = db.query(DisruptionOption).filter(
+                    DisruptionOption.disruption_case_id == disruption_case.id
+                ).limit(3).all() if db else []
+                
+                options_context = "Available Options:\n"
+                for opt in options:
+                    options_context += f"- {opt.title}: {opt.description}\n"
+            except:
+                options_context = "Options information not available."
+            
+            # ✅ Build conversation history - Handle both dict and Pydantic objects
+            history_text = ""
+            if conversation_history:
+                for msg in conversation_history[-5:]:  # Last 5 messages
+                    # Check if it's a Pydantic object or dict
+                    if hasattr(msg, 'role'):
+                        role = msg.role
+                        content = msg.content
+                    else:
+                        role = msg.get('role', 'user')
+                        content = msg.get('content', '')
+                    history_text += f"{role.title()}: {content}\n"
+            
+            # Create prompt
+            prompt = f"""You are an AI travel assistant helping a passenger with a flight disruption.
+
+    {case_context}
+
+    {rights_context}
+
+    {options_context}
+
+    Recent Conversation:
+    {history_text if history_text else "This is the start of the conversation."}
+
+    User Question: {user_message}
+
+    Instructions:
+    1. Provide helpful, accurate information about the disruption
+    2. Reference specific details from the case context above
+    3. If asked about rights, mention the compensation amount and key entitlements
+    4. If asked about options, suggest the best alternatives from the list
+    5. Be concise (2-3 sentences) but informative
+    6. Use a friendly, professional tone
+    7. If you don't have specific information, be honest and suggest checking the dashboard cards
+
+    Response:"""
+
+            # ✅ Generate response using existing model instance
+            response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=self.config
+        )
+            
+            answer = response.text.strip()
+            
+            logger.info(f"✅ Chat response generated ({len(answer)} chars)")
+            
+            return answer
+            
+        except Exception as e:
+            logger.error(f"❌ Chat failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+            # Fallback response
+            return f"I apologize, but I encountered an error processing your question. Please check the dashboard cards for information about your disruption, or try asking your question differently."
+
 
     def _extract_airport_code(self, location: str) -> str:
         """

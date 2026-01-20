@@ -1,5 +1,14 @@
 import axios from 'axios';
+import type {
+  DisruptionCase,
+  CreateDisruptionRequest,
+  DisruptionOption,
+  PassengerRights,
+  DraftMessage,
+  GenerateMessageRequest,
+} from '../types/disruption';
 
+const draftGenerationCache = new Map<number, Promise<{ drafts: DraftMessage[] }>>();
 // Base API URL (update if your backend runs on different port)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -220,6 +229,15 @@ export const flightApi = {
     await api.delete(`/trips/${tripId}/flights/${flightId}`);
   },
 };
+// Add type
+export interface AirportOption {
+  code: string;
+  name: string;
+  city: string;
+  country: string;
+  state?: string;
+  display: string;
+}
 
 // Airport autocomplete
 export interface AirportSuggestion {
@@ -236,6 +254,14 @@ export const airportApi = {
     if (query.length < 2) return [];
     const response = await api.get('/airports/search', {
       params: { q: query }
+    });
+    return response.data;
+  },
+
+  // ✅ NEW: Get all airports for a city
+  getAirportsByCity: async (city: string): Promise<AirportOption[]> => {
+    const response = await api.get('/trips/airports/by-city', {
+      params: { city }
     });
     return response.data;
   },
@@ -329,14 +355,6 @@ export const dayApi = {
 
 
 // ===== DISRUPTION API (Day 15) =====
-import type {
-  DisruptionCase,
-  CreateDisruptionRequest,
-  DisruptionOption,
-  PassengerRights,
-  DraftMessage,
-  GenerateMessageRequest,
-} from '../types/disruption';
 
 export const disruptionApi = {
   // Create new disruption case
@@ -401,6 +419,84 @@ export const disruptionApi = {
     const response = await api.get(`/disruptions/${caseId}/messages`);
     return response.data;
   },
+
+  // ✅ Generate multiple drafts with caching
+  generateDrafts: async (caseId: number): Promise<{ drafts: DraftMessage[] }> => {
+    // ✅ Check if already generating for this case
+    if (draftGenerationCache.has(caseId)) {
+      console.log(`⏳ Already generating drafts for case ${caseId}, waiting...`);
+      return draftGenerationCache.get(caseId)!;
+    }
+    
+    const tones: Array<'formal' | 'firm' | 'friendly'> = ['formal', 'firm', 'friendly'];
+    
+    // ✅ Create promise and cache it
+    const generationPromise = (async () => {
+      try {
+        console.log(`🔄 Generating ${tones.length} drafts for case ${caseId}...`);
+        
+        // Generate all 3 drafts in parallel
+        const draftPromises = tones.map(tone =>
+          disruptionApi.generateMessage(caseId, {
+            recipient_type: 'airline',
+            tone: tone,
+          }).catch(err => {
+            console.error(`❌ Failed to generate ${tone} draft:`, err);
+            return null; // Return null for failed drafts
+          })
+        );
+
+        const results = await Promise.all(draftPromises);
+        console.log(`✅ Draft generation complete:`, results.filter(r => r).length, 'succeeded');
+        
+        // ✅ Fetch all drafts from DB after generation
+        const allDrafts = await disruptionApi.getMessages(caseId);
+        
+        console.log(`✅ Retrieved ${allDrafts.length} total drafts for case ${caseId}`);
+        
+        return { 
+          drafts: allDrafts.slice(0, 3) 
+        };
+        
+      } catch (error) {
+        console.error('❌ Failed to generate drafts:', error);
+        
+        // Fallback: Try to fetch any existing drafts
+        try {
+          const existingDrafts = await disruptionApi.getMessages(caseId);
+          return { drafts: existingDrafts.slice(0, 3) };
+        } catch {
+          return { drafts: [] };
+        }
+      } finally {
+        // ✅ Clear cache after 10 seconds
+        setTimeout(() => {
+          draftGenerationCache.delete(caseId);
+          console.log(`🧹 Cleared draft cache for case ${caseId}`);
+        }, 10000);
+      }
+    })();
+    
+    // ✅ Store in cache
+    draftGenerationCache.set(caseId, generationPromise);
+    
+    return generationPromise;
+  },
+
+  // ✅ Chat with AI assistant (placeholder for Day 16)
+  chat: async (caseId: number, message: string, history?: any[]): Promise<{ response: string }> => {
+  const response = await api.post(`/disruptions/${caseId}/chat`, {
+    message: message,
+    history: history || []
+  });
+  return response.data;
+},
+
+  // ✅ Get chat history (placeholder for Day 16)
+  getChatHistory: async (caseId: number): Promise<{ messages: any[] }> => {
+  const response = await api.get(`/disruptions/${caseId}/chat-history`);
+  return response.data;
+},
 
   // Delete disruption case
   deleteCase: async (caseId: number): Promise<void> => {
