@@ -252,7 +252,7 @@ export const airportApi = {
   // Search airports
   searchAirports: async (query: string): Promise<AirportSuggestion[]> => {
     if (query.length < 2) return [];
-    const response = await api.get('/airports/search', {
+    const response = await api.get('/trips/airports/search', {
       params: { q: query }
     });
     return response.data;

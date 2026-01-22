@@ -7,7 +7,7 @@ import logging
 from typing import Optional, Dict, List
 from datetime import datetime, date,timezone
 from sqlalchemy.orm import Session
-
+import asyncio
 from app.core.config import settings
 from app.models.disruption import DisruptionCase, DisruptionSeverity
 from app.services.web_search_service import web_search_service
@@ -134,7 +134,7 @@ class DisruptionService:
                 # "flight_date": flight_date.isoformat()
             }
             
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:
                 response = await client.get(url, params=params)
                 response.raise_for_status()
                 
@@ -179,7 +179,9 @@ class DisruptionService:
                 
                 logger.info(f"✅ Flight status: {result['status']}")
                 return result
-                
+        except httpx.TimeoutException:
+            logger.error(f"⏱️ AviationStack API timeout for {flight_number}")
+            return None        
         except httpx.HTTPStatusError as e:
             logger.error(f"❌ AviationStack API error: {e}")
             return None
@@ -255,6 +257,88 @@ class DisruptionService:
             logger.error(f"❌ Weather check failed: {e}")
             return None
     
+    
+    async def search_alternative_flights(
+        self,
+        origin_iata: str,
+        destination_iata: str,
+        departure_date: str,  # ISO format: "2026-01-18"
+        cabin_class: str = "economy",
+        max_results: int = 3
+    ) -> List[Dict]:
+        """
+        Search for alternative flights using SerpAPI Google Flights
+        
+        Args:
+            origin_iata: Origin airport IATA code (e.g., "LHR")
+            destination_iata: Destination airport IATA code (e.g., "CDG")
+            departure_date: Departure date in YYYY-MM-DD format
+            cabin_class: Cabin class (economy, business, first)
+            max_results: Maximum number of alternative flights to return
+            
+        Returns:
+            List of flight dictionaries with details
+        """
+        try:
+            logger.info(f"✈️ Searching alternative flights: {origin_iata} → {destination_iata} on {departure_date}")
+            
+            # Import flight service
+            from app.services.flight_service import search_flights_serpapi
+            
+            # Search flights using existing SerpAPI integration
+            flights = search_flights_serpapi(
+                origin=origin_iata,
+                destination=destination_iata,
+                departure_date=departure_date,
+                cabin_class=cabin_class,
+                max_stops=0,  # Allow 1 stop for more options
+                passengers=1,
+                trip_type="one_way"
+            )
+
+            if not flights:
+                logger.info("⚠️ No direct flights found, searching with 1 stop...")
+                flights = search_flights_serpapi(
+                    origin=origin_iata,
+                    destination=destination_iata,
+                    departure_date=departure_date,
+                    cabin_class=cabin_class,
+                    max_stops=1,
+                    passengers=1,
+                    trip_type="one_way"
+                )
+            
+            # Convert to dict format
+            alternative_flights = []
+            
+            for flight in flights[:max_results]:
+                alternative_flights.append({
+                    "flight_number": flight.flight_number,
+                    "airline": flight.airline,
+                    "airline_code": flight.airline_code,
+                    "departure_time": flight.departure_time.isoformat(),
+                    "arrival_time": flight.arrival_time.isoformat(),
+                    "duration_minutes": flight.duration_minutes,
+                    "stops": flight.stops,
+                    "layover_airports": flight.layover_airports,
+                    "cabin_class": flight.cabin_class,
+                    "price_amount": flight.price_amount,
+                    "price_currency": flight.price_currency,
+                    "booking_url": flight.booking_url,
+                    "aircraft_type": flight.aircraft_type,
+                    "amenities": flight.amenities or [],
+                    "source": "serpapi"
+                })
+            
+            logger.info(f"✅ Found {len(alternative_flights)} alternative flights")
+            return alternative_flights
+            
+        except Exception as e:
+            logger.error(f"❌ Alternative flight search failed: {e}")
+            # Return empty list instead of raising - allow other options to be generated
+            return []
+
+
     async def check_travel_alerts(
         self,
         origin: str,
@@ -343,63 +427,91 @@ class DisruptionService:
             if not case.meta_data:
                 case.meta_data = {}
             
-            # 1. Check flight status
-            flight_status = await self.check_flight_status(
-                case.flight_number,
-                case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
-            )
-            
-            if flight_status:
-                case.meta_data["flight_status"] = flight_status
-                
-                # Update current_status based on flight status
-                status = flight_status.get("status", "").lower()
-                delay_minutes = flight_status.get("departure", {}).get("delay", 0) or 0
-                
-                if status == "cancelled":
-                    case.current_status = "Flight cancelled"
-                    case.severity = DisruptionSeverity.CRITICAL
-                elif status == "delayed":
-                    case.current_status = f"Delayed by {delay_minutes} minutes"
-                    case.severity = self._calculate_severity_from_delay(delay_minutes)
-                elif status == "active":
-                    case.current_status = "Flight is active (in air)"
-                elif status == "landed":
-                    case.current_status = "Flight has landed"
-                else:
-                    case.current_status = f"Flight status: {status}"
-            
-            # 2. Check weather alerts
-            # Use departure airport from flight status or extract from origin
-            departure_airport = None
-            if flight_status:
-                departure_airport = flight_status.get("departure", {}).get("iata")
-            
-            if departure_airport:
-                weather_info = await self.check_weather_alerts(
-                    departure_airport,
-                    case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
+            # ✅ 1. Check flight status with timeout
+            logger.info(f"✈️ Checking flight status for {case.flight_number}...")
+            try:
+                flight_status = await asyncio.wait_for(
+                    self.check_flight_status(
+                        case.flight_number,
+                        case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
+                    ),
+                    timeout=10.0  # 10 second timeout
                 )
                 
-                if weather_info:
-                    case.meta_data["weather"] = weather_info
+                if flight_status:
+                    case.meta_data["flight_status"] = flight_status
+                    logger.info(f"✅ Flight status: {flight_status.get('status', 'unknown')}")
                     
-                    # Update severity if weather is severe
-                    if weather_info.get("severity") == "high":
-                        if case.severity == DisruptionSeverity.LOW:
-                            case.severity = DisruptionSeverity.MEDIUM
+                    # Update current_status based on flight status
+                    status = flight_status.get("status", "").lower()
+                    delay_minutes = flight_status.get("departure", {}).get("delay", 0) or 0
+                    
+                    if status == "cancelled":
+                        case.current_status = "Flight cancelled"
+                        case.severity = DisruptionSeverity.CRITICAL
+                    elif status == "delayed":
+                        case.current_status = f"Delayed by {delay_minutes} minutes"
+                        case.severity = self._calculate_severity_from_delay(delay_minutes)
+                    elif status == "active":
+                        case.current_status = "Flight is active (in air)"
+                    elif status == "landed":
+                        case.current_status = "Flight has landed"
+                    else:
+                        case.current_status = f"Flight status: {status}"
+                else:
+                    logger.warning(f"⚠️ No flight status data returned")
+                    case.current_status = "Unable to verify flight status"
+                    
+            except asyncio.TimeoutError:
+                logger.warning(f"⏱️ Flight status check timeout (>10s)")
+                case.current_status = "Flight status check timed out"
+            except Exception as e:
+                logger.warning(f"⚠️ Flight status check failed: {e}")
+                case.current_status = "Unable to check flight status"
             
-            # 3. Check travel alerts (optional - can be slow)
-            # Uncomment if you want to include this
-            # travel_alerts = await self.check_travel_alerts(
-            #     case.origin,
-            #     case.destination,
-            #     case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
-            # )
-            # if travel_alerts:
-            #     case.meta_data["travel_alerts"] = travel_alerts
+            # ✅ 2. Check weather alerts with timeout
+            departure_airport = None
+            # Try to get airport from flight status first
+            if case.meta_data.get("flight_status"):
+                departure_airport = case.meta_data["flight_status"].get("departure", {}).get("iata")
+                logger.info(f"📍 Using airport from flight status: {departure_airport}")
             
-            # 4. Update timestamp
+            if not departure_airport :
+                departure_airport = case.origin  # Use origin IATA code
+                logger.info(f"📍 Using origin from case: {departure_airport}")
+            
+            if departure_airport and len(departure_airport) == 3:
+                logger.info(f"🌦️ Checking weather for {departure_airport}...")
+                try:
+                    weather_info = await asyncio.wait_for(
+                        self.check_weather_alerts(
+                            departure_airport,
+                            case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
+                        ),
+                        timeout=10.0
+                    )
+                    
+                    if weather_info:
+                        case.meta_data["weather"] = weather_info
+                        logger.info(f"✅ Weather: {weather_info.get('condition', 'unknown')} at {departure_airport}")
+                        
+                        # Update severity if weather is severe
+                        if weather_info.get("severity") == "high":
+                            if case.severity == DisruptionSeverity.LOW:
+                                case.severity = DisruptionSeverity.MEDIUM
+                    else:
+                        logger.warning(f"⚠️ No weather data returned for {departure_airport}")
+                                
+                except asyncio.TimeoutError:
+                    logger.warning(f"⏱️ Weather check timeout (>10s)")
+                except Exception as e:
+                    logger.warning(f"⚠️ Weather check failed: {e}")
+                    import traceback
+                    logger.warning(traceback.format_exc())
+            else:
+                logger.warning(f"⚠️ No valid airport code for weather check (got: {departure_airport})")
+            
+            # ✅ 4. Update timestamp
             case.meta_data["last_enriched"] = datetime.now(timezone.utc).isoformat()
             case.updated_at = datetime.now(timezone.utc)
             
@@ -411,89 +523,15 @@ class DisruptionService:
             
         except Exception as e:
             logger.error(f"❌ Case enrichment failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             db.rollback()
-            raise
+            # Don't raise - return case even if enrichment fails
+            case.current_status = "Created (enrichment failed)"
+            db.commit()
+            return case
+
     
-
-    async def search_alternative_flights(
-        self,
-        origin_iata: str,
-        destination_iata: str,
-        departure_date: str,  # ISO format: "2026-01-18"
-        cabin_class: str = "economy",
-        max_results: int = 3
-    ) -> List[Dict]:
-        """
-        Search for alternative flights using SerpAPI Google Flights
-        
-        Args:
-            origin_iata: Origin airport IATA code (e.g., "LHR")
-            destination_iata: Destination airport IATA code (e.g., "CDG")
-            departure_date: Departure date in YYYY-MM-DD format
-            cabin_class: Cabin class (economy, business, first)
-            max_results: Maximum number of alternative flights to return
-            
-        Returns:
-            List of flight dictionaries with details
-        """
-        try:
-            logger.info(f"✈️ Searching alternative flights: {origin_iata} → {destination_iata} on {departure_date}")
-            
-            # Import flight service
-            from app.services.flight_service import search_flights_serpapi
-            
-            # Search flights using existing SerpAPI integration
-            flights = search_flights_serpapi(
-                origin=origin_iata,
-                destination=destination_iata,
-                departure_date=departure_date,
-                cabin_class=cabin_class,
-                max_stops=0,  # Allow 1 stop for more options
-                passengers=1,
-                trip_type="one_way"
-            )
-
-            if not flights:
-                logger.info("⚠️ No direct flights found, searching with 1 stop...")
-                flights = search_flights_serpapi(
-                    origin=origin_iata,
-                    destination=destination_iata,
-                    departure_date=departure_date,
-                    cabin_class=cabin_class,
-                    max_stops=1,
-                    passengers=1,
-                    trip_type="one_way"
-                )
-            
-            # Convert to dict format
-            alternative_flights = []
-            
-            for flight in flights[:max_results]:
-                alternative_flights.append({
-                    "flight_number": flight.flight_number,
-                    "airline": flight.airline,
-                    "airline_code": flight.airline_code,
-                    "departure_time": flight.departure_time.isoformat(),
-                    "arrival_time": flight.arrival_time.isoformat(),
-                    "duration_minutes": flight.duration_minutes,
-                    "stops": flight.stops,
-                    "layover_airports": flight.layover_airports,
-                    "cabin_class": flight.cabin_class,
-                    "price_amount": flight.price_amount,
-                    "price_currency": flight.price_currency,
-                    "booking_url": flight.booking_url,
-                    "aircraft_type": flight.aircraft_type,
-                    "amenities": flight.amenities or [],
-                    "source": "serpapi"
-                })
-            
-            logger.info(f"✅ Found {len(alternative_flights)} alternative flights")
-            return alternative_flights
-            
-        except Exception as e:
-            logger.error(f"❌ Alternative flight search failed: {e}")
-            # Return empty list instead of raising - allow other options to be generated
-            return []
 
     # ===== Helper Methods =====
     

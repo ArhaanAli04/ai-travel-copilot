@@ -1,17 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+# Configure logging FIRST, before any other imports
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+# Disable SQLAlchemy verbose logging IMMEDIATELY
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.dialects").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
+
+# Keep your app logs at INFO level
+logging.getLogger("app").setLevel(logging.INFO)
+
 from app.core.config import settings
 from app.core.postgres import test_connection as test_postgres
 from app.core.mongo import connect_to_mongo, close_mongo_connection
 from app.core.qdrant import connect_to_qdrant
-import logging
 from app.api import planner,flights,guides,disruptions
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO if settings.DEBUG else logging.WARNING,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 
 logger = logging.getLogger(__name__)
 

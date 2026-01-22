@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime,timezone
 import logging
-
+from app.api.flights import get_airport_code
+import re
 from app.core.postgres import get_db
 from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity
 from app.schemas.disruption import (
@@ -31,6 +32,45 @@ logger = logging.getLogger(__name__)
 
 
 # ===== Helper Functions =====
+def _resolve_airport_codes(origin: str, destination: str) -> tuple[str, str]:
+    """
+    Convert city names or mixed formats to IATA codes
+    
+    Examples:
+    - "New York" → "JFK"
+    - "Miami, US (MIA)" → "MIA"
+    - "JFK" → "JFK" (already IATA)
+    """
+    try:
+        # Extract IATA if already in format "City (CODE)" or "City, Country (CODE)"
+        origin_match = re.search(r'\(([A-Z]{3})\)', origin)
+        if origin_match:
+            origin_iata = origin_match.group(1)
+        else:
+            # Check if already 3-letter IATA code
+            if len(origin.strip()) == 3 and origin.strip().isupper():
+                origin_iata = origin.strip()
+            else:
+                origin_iata = get_airport_code(origin)
+        
+        # Same for destination
+        dest_match = re.search(r'\(([A-Z]{3})\)', destination)
+        if dest_match:
+            dest_iata = dest_match.group(1)
+        else:
+            if len(destination.strip()) == 3 and destination.strip().isupper():
+                dest_iata = destination.strip()
+            else:
+                dest_iata = get_airport_code(destination)
+        
+        logger.info(f"✅ Resolved airports: '{origin}' → {origin_iata}, '{destination}' → {dest_iata}")
+        return origin_iata, dest_iata
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Could not resolve airport codes: {e}")
+        # Fallback to original values
+        return origin, destination
+
 def _detect_disruption_type(notes: str) -> DisruptionType:
     """
     Auto-detect disruption type from notes using simple keyword matching
@@ -88,22 +128,38 @@ async def create_disruption_case(
     - Returns created case with initial status
     """
     try:
+        logger.info(f"📥 Received disruption case request: {case_data.flight_number}")
+        logger.info(f"   Origin: {case_data.origin}")
+        logger.info(f"   Destination: {case_data.destination}")
+
+        # ✅ NEW: Resolve airport codes
+        logger.info("🔍 Resolving airport codes...")
+        origin_iata, dest_iata = _resolve_airport_codes(
+            case_data.origin, 
+            case_data.destination
+        )
+        logger.info(f"✅ Resolved: {origin_iata} → {dest_iata}")
+
         # Auto-detect disruption type from notes (simple heuristic for now)
         disruption_type = _detect_disruption_type(case_data.notes or "")
-        
+        logger.info(f"🔍 Detected disruption type: {disruption_type}")
+
         # Create case
         db_case = DisruptionCase(
             flight_number=case_data.flight_number.upper(),
             airline=case_data.airline,
-            origin=case_data.origin,
-            destination=case_data.destination,
+            origin=origin_iata,
+            destination=dest_iata,
             disruption_date=case_data.disruption_date,
             disruption_type=disruption_type,
             pnr=case_data.pnr,
             notes=case_data.notes,
             current_status="Checking flight status",
             severity=DisruptionSeverity.LOW,
-            meta_data={}
+            meta_data={
+                "original_origin": case_data.origin,      # ✅ Keep original for display
+                "original_destination": case_data.destination
+            }
         )
         
         db.add(db_case)
@@ -111,17 +167,34 @@ async def create_disruption_case(
         db.refresh(db_case)
         
         logger.info(f"✅ Created disruption case {db_case.id} for flight {db_case.flight_number}")
+        logger.info(f"   Route: {origin_iata} → {dest_iata}")
+        # ✅ Auto-enrich with timeout protection
+        logger.info(f"🔄 Starting enrichment for case {db_case.id}...")
+
         try:
-            db_case = await disruption_service.enrich_disruption_case(db_case, db)
-            logger.info(f"✅ Case {db_case.id} auto-enriched with flight/weather data")
+            import asyncio
+            db_case = await asyncio.wait_for(
+                disruption_service.enrich_disruption_case(db_case, db),
+                timeout=30.0
+            )
+            logger.info(f"✅ Case {db_case.id} auto-enriched successfully")
+        except asyncio.TimeoutError:
+            logger.warning(f"⏱️ Enrichment timeout for case {db_case.id} (took >30s)")
+            db_case.current_status = "Enrichment in progress (taking longer than expected)"
+            db.commit()
+
         except Exception as e:
-            logger.warning(f"⚠️ Auto-enrichment failed (case still created): {e}")
-            # Don't fail the request if enrichment fails
+            logger.warning(f"⚠️ Auto-enrichment failed for case {db_case.id}: {e}")
+            db_case.current_status = "Created (enrichment failed)"
+            db.commit()
+        logger.info(f"📤 Returning case {db_case.id} to frontend")
         return db_case
         
     except Exception as e:
         db.rollback()
         logger.error(f"❌ Error creating disruption case: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create disruption case: {str(e)}"
