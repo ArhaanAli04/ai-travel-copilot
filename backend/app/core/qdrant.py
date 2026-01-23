@@ -39,7 +39,7 @@ def connect_to_qdrant():
             vector_size=3072,
             is_policies=True  # Special handling for policies
         )
-        
+        logger.info("✅ Qdrant setup complete (local_discovery collection will be created on first use)")
         return qdrant_client
     except Exception as e:
         logger.error(f"❌ Qdrant connection failed: {e}")

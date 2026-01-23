@@ -1,9 +1,11 @@
 from google import genai
+from google.genai import types
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Literal
 from app.core.config import settings
 import logging
 import time
+
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +19,15 @@ class EmbeddingService:
             raise RuntimeError("GEMINI_API_KEY not set in environment")
         
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        self.model_name = "gemini-embedding-001"  # Latest Gemini embedding model
+        # Use latest model with configurable dimensions
+        self.model_name = "models/text-embedding-004"
+        self.dimension = 768  # Optimized for storage (vs default 3072)
         self.batch_size = 100  # Process embeddings in batches
         self.rate_limit_delay = 0.1  # Delay between API calls (seconds)
     
     def embed_chunks(self, chunks: List[Dict]) -> List[Dict]:
         """
-        Generate embeddings for text chunks
+        Generate embeddings for text chunks (LEGACY - for existing RAG system)
         
         Args:
             chunks: List of chunk dictionaries with 'content' field
@@ -43,31 +47,113 @@ class EmbeddingService:
                 # Extract text content
                 texts = [chunk["content"] for chunk in batch]
                 
-                # Generate embeddings
-                embeddings = self._embed_texts(texts)
+                # Generate embeddings with RETRIEVAL_DOCUMENT task type
+                embeddings = self.generate_embeddings(
+                    texts,
+                    task_type="RETRIEVAL_DOCUMENT"
+                )
                 
-                # Add embeddings to chunks (convert numpy to list for JSON serialization)
+                # Add embeddings to chunks
                 for chunk, embedding in zip(batch, embeddings):
-                    chunk["embedding"] = embedding.tolist() if isinstance(embedding, np.ndarray) else embedding
+                    chunk["embedding"] = embedding
                     embedded_chunks.append(chunk)
                 
                 # Rate limiting
                 if i + self.batch_size < len(chunks):
                     time.sleep(self.rate_limit_delay)
                 
-                logger.info(f" Embedded batch {i//self.batch_size + 1}/{(len(chunks)-1)//self.batch_size + 1}")
+                logger.info(f"✅ Embedded batch {i//self.batch_size + 1}/{(len(chunks)-1)//self.batch_size + 1}")
                 
             except Exception as e:
                 logger.error(f"❌ Failed to embed batch {i//self.batch_size + 1}: {e}")
                 # Skip this batch and continue
                 continue
         
-        logger.info(f" Generated {len(embedded_chunks)} embeddings")
+        logger.info(f"✅ Generated {len(embedded_chunks)} embeddings")
         return embedded_chunks
+    
+    def generate_embeddings(
+        self,
+        texts: List[str],
+        task_type: Literal["RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY"] = "RETRIEVAL_DOCUMENT"
+    ) -> List[List[float]]:
+        """
+        Generate embeddings for a list of texts using Gemini API (NEW - optimized)
+        
+        Args:
+            texts: List of text strings to embed
+            task_type: "RETRIEVAL_DOCUMENT" for storing, "RETRIEVAL_QUERY" for searching
+        
+        Returns:
+            List of normalized embedding vectors (768 dimensions each)
+        """
+        if not texts:
+            return []
+        
+        embeddings_list = []
+        
+        try:
+            # Call Gemini embedding API with optimized config
+            result = self.client.models.embed_content(
+                model=self.model_name,
+                contents=texts,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=self.dimension,  # 768 dims for storage savings
+                    task_type=task_type
+                )
+            )
+            
+            # Extract and normalize embeddings
+            for embedding in result.embeddings:
+                normalized = self.normalize_embedding(embedding.values)
+                embeddings_list.append(normalized)
+            
+            return embeddings_list
+        
+        except Exception as e:
+            logger.error(f"❌ Error generating embeddings: {e}")
+            raise
+    
+    def generate_single_embedding(
+        self,
+        text: str,
+        task_type: Literal["RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY"] = "RETRIEVAL_DOCUMENT"
+    ) -> List[float]:
+        """
+        Generate embedding for a single text (NEW - convenience method)
+        
+        Args:
+            text: Text string to embed
+            task_type: "RETRIEVAL_DOCUMENT" for storing, "RETRIEVAL_QUERY" for searching
+        
+        Returns:
+            Normalized embedding vector (768 dimensions)
+        """
+        embeddings = self.generate_embeddings([text], task_type)
+        return embeddings[0] if embeddings else []
+    
+    def normalize_embedding(self, embedding: List[float]) -> List[float]:
+        """
+        Normalize embedding vector to unit length (NEW - for Qdrant)
+        
+        Args:
+            embedding: Raw embedding vector
+        
+        Returns:
+            Normalized embedding vector as list
+        """
+        embedding_np = np.array(embedding, dtype=np.float32)
+        norm = np.linalg.norm(embedding_np)
+        
+        if norm == 0:
+            return embedding  # Avoid division by zero
+        
+        normalized = embedding_np / norm
+        return normalized.tolist()
     
     def _embed_texts(self, texts: List[str]) -> np.ndarray:
         """
-        Generate embeddings for a list of texts using Gemini API
+        Generate embeddings for a list of texts (LEGACY - internal method)
         
         Args:
             texts: List of text strings
@@ -82,10 +168,14 @@ class EmbeddingService:
         
         for text in texts:
             try:
-                # Call Gemini embedding API
+                # Call Gemini embedding API with optimized dimensions
                 result = self.client.models.embed_content(
                     model=self.model_name,
-                    contents=text
+                    contents=text,
+                    config=types.EmbedContentConfig(
+                        output_dimensionality=self.dimension,
+                        task_type="RETRIEVAL_DOCUMENT"
+                    )
                 )
                 
                 # Extract embedding values
@@ -94,8 +184,8 @@ class EmbeddingService:
                 
             except Exception as e:
                 logger.warning(f"⚠️ Failed to embed single text: {e}")
-                # Fallback: zero vector with Gemini embedding dimension (768)
-                embeddings_list.append([0.0] * 3072)
+                # Fallback: zero vector with 768 dimensions
+                embeddings_list.append([0.0] * self.dimension)
         
         # Convert to numpy array
         embeddings = np.array(embeddings_list, dtype=np.float32)
@@ -109,43 +199,29 @@ class EmbeddingService:
     
     def embed_query(self, query: str) -> List[float]:
         """
-        Generate embedding for a search query
+        Generate embedding for a search query (UPDATED - uses new method)
         
         Args:
             query: Search query text
             
         Returns:
-            Embedding vector as list
+            Embedding vector as list (768 dimensions)
         """
         try:
-            result = self.client.models.embed_content(
-                model=self.model_name,
-                contents=query
-            )
-            
-            # Extract and normalize embedding
-            embedding = np.array(result.embeddings[0].values, dtype=np.float32)
-            
-            # L2-normalize
-            norm = np.linalg.norm(embedding)
-            if norm > 0:
-                embedding = embedding / norm
-            
-            return embedding.tolist()
-        
+            return self.generate_single_embedding(query, task_type="RETRIEVAL_QUERY")
         except Exception as e:
             logger.error(f"❌ Failed to embed query: {e}")
             raise
-
+    
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for a batch of texts
+        Generate embeddings for a batch of texts (UPDATED - uses new method)
         
         Args:
             texts: List of text strings
             
         Returns:
-            List of embedding vectors (each as a list of floats)
+            List of embedding vectors (each as a list of floats, 768 dimensions)
         """
         try:
             logger.info(f"🔄 Generating embeddings for {len(texts)} texts...")
@@ -157,11 +233,12 @@ class EmbeddingService:
                 batch = texts[i:i + self.batch_size]
                 
                 # Generate embeddings for this batch
-                batch_embeddings = self._embed_texts(batch)
+                batch_embeddings = self.generate_embeddings(
+                    batch,
+                    task_type="RETRIEVAL_DOCUMENT"
+                )
                 
-                # Convert numpy array to list of lists
-                for embedding in batch_embeddings:
-                    embeddings_list.append(embedding.tolist() if isinstance(embedding, np.ndarray) else embedding)
+                embeddings_list.extend(batch_embeddings)
                 
                 # Rate limiting
                 if i + self.batch_size < len(texts):
@@ -175,11 +252,10 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"❌ Failed to embed batch: {e}")
             raise
-
     
     def get_embedding_dimension(self) -> int:
         """Get the dimension of embeddings from this model"""
-        return 3072  # Gemini embedding dimension
+        return self.dimension  # Now returns 768 instead of 3072
 
 
 # Global instance
