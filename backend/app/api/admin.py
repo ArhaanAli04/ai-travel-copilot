@@ -59,6 +59,85 @@ async def ingest_city(
         status="processing"
     )
 
+class EnrichFoursquareRequest(BaseModel):
+    city: str
+    limit: Optional[int] = None
+    categories: Optional[List[str]] = None
+
+
+# ✅ NEW ENDPOINT
+@router.post("/enrich-city-foursquare", response_model=IngestCityResponse)
+async def enrich_city_foursquare(
+    request: EnrichFoursquareRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Trigger Foursquare enrichment for a city's POIs
+    """
+    valid_cities = ["mumbai", "goa", "delhi", "bangalore", "pune"]
+    if request.city.lower() not in valid_cities:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid city. Valid options: {valid_cities}"
+        )
+    
+    background_tasks.add_task(
+        run_foursquare_enrichment,
+        request.city,
+        request.limit,
+        request.categories
+    )
+    
+    logger.info(f"🚀 Started Foursquare enrichment for {request.city}")
+    
+    return IngestCityResponse(
+        message=f"Foursquare enrichment started for {request.city}",
+        city=request.city,
+        status="processing"
+    )
+
+
+def run_foursquare_enrichment(
+    city: str,
+    limit: Optional[int] = None,
+    categories: Optional[List[str]] = None
+):
+    """Run Foursquare enrichment script"""
+    script_path = Path(__file__).parent.parent.parent / "scripts" / "enrich_pois_foursquare.py"
+    
+    cmd = [sys.executable, str(script_path), city]
+    
+    if limit:
+        cmd.extend(["--limit", str(limit)])
+    
+    if categories:
+        cmd.extend(["--categories"] + categories)
+    
+    logger.info(f"Running: {' '.join(cmd)}")
+    
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate(timeout=1800)  # 30 min timeout
+        
+        if process.returncode == 0:
+            logger.info(f"✅ Foursquare enrichment completed for {city}")
+            # Log summary
+            for line in stdout.split('\n'):
+                if any(kw in line for kw in ['enriched', 'updated', 'Failed', 'processed']):
+                    logger.info(f"  {line.strip()}")
+        else:
+            logger.error(f"❌ Foursquare enrichment failed for {city}")
+            if stderr:
+                logger.error(stderr[:500])
+    
+    except Exception as e:
+        logger.error(f"❌ Exception during Foursquare enrichment: {e}")
 
 def run_ingestion_script(city: str, categories: Optional[List[str]] = None):
     """Run the ingestion script as a subprocess"""

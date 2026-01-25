@@ -153,3 +153,41 @@ class IngestionMetadata(BaseModel):
         "arbitrary_types_allowed": True,
         "json_encoders": {ObjectId: str}
     }
+
+class FoursquareTip(BaseModel):
+    """
+    Foursquare tip/review data linked to OSM POI
+    Stored in MongoDB 'foursquare_tips' collection
+    """
+    id: Optional[PyObjectId] = Field(default_factory=lambda: ObjectId(), alias="_id")
+    poi_id: str  # Reference to POI MongoDB _id
+    fsq_place_id: str  # Foursquare place ID
+    fsq_name: str  # Foursquare place name (for verification)
+    tips: List[Dict[str, Any]] = Field(default_factory=list)  # Array of tip objects
+    rating: Optional[float] = None  # Foursquare rating (0-10 scale)
+    popularity: Optional[float] = None  # Popularity score
+    photos: List[str] = Field(default_factory=list)  # Photo URLs
+    city: str
+    matched_by: str = "name_and_distance"  # How OSM→Foursquare match was made
+    match_confidence: float = 0.0  # 0-1 confidence score
+    enriched_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str},
+        "json_schema_extra": {
+            "example": {
+                "poi_id": "507f1f77bcf86cd799439011",
+                "fsq_place_id": "4b0588f0f964a5203f1c22e3",
+                "fsq_name": "Cafe Madras",
+                "tips": [
+                    {"text": "Best dosa in the area!", "created_at": "2025-12-15", "agree_count": 12},
+                    {"text": "Try the filter coffee", "created_at": "2026-01-10", "agree_count": 8}
+                ],
+                "rating": 8.5,
+                "popularity": 0.85,
+                "city": "mumbai"
+            }
+        }
+    }
