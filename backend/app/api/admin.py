@@ -65,7 +65,7 @@ class EnrichFoursquareRequest(BaseModel):
     categories: Optional[List[str]] = None
 
 
-# ✅ NEW ENDPOINT
+#  NEW ENDPOINT
 @router.post("/enrich-city-foursquare", response_model=IngestCityResponse)
 async def enrich_city_foursquare(
     request: EnrichFoursquareRequest,
@@ -95,6 +95,81 @@ async def enrich_city_foursquare(
         city=request.city,
         status="processing"
     )
+
+#  ADD THIS MODEL
+class IngestBlogRequest(BaseModel):
+    city: str
+    days_back: Optional[int] = 7
+    include_general: Optional[bool] = True
+
+
+#  ADD THIS ENDPOINT
+@router.post("/ingest-blogs", response_model=IngestCityResponse)
+async def ingest_blogs(
+    request: IngestBlogRequest,
+    background_tasks: BackgroundTasks
+):
+    """Trigger blog RSS ingestion for a city"""
+    valid_cities = ["mumbai", "delhi", "goa", "bangalore", "pune"]
+    if request.city.lower() not in valid_cities:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid city. Valid options: {valid_cities}"
+        )
+    
+    background_tasks.add_task(
+        run_blog_ingestion,
+        request.city,
+        request.days_back,
+        request.include_general
+    )
+    
+    logger.info(f"🚀 Started blog ingestion for {request.city}")
+    
+    return IngestCityResponse(
+        message=f"Blog ingestion started for {request.city}",
+        city=request.city,
+        status="processing"
+    )
+
+
+def run_blog_ingestion(
+    city: str,
+    days_back: int = 7,
+    include_general: bool = True
+):
+    """Run blog ingestion script"""
+    script_path = Path(__file__).parent.parent.parent / "scripts" / "ingest_blog_content.py"
+    
+    cmd = [sys.executable, str(script_path), city, "--days", str(days_back)]
+    
+    if not include_general:
+        cmd.append("--no-general")
+    
+    logger.info(f"Running: {' '.join(cmd)}")
+    
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate(timeout=600)
+        
+        if process.returncode == 0:
+            logger.info(f"✅ Blog ingestion completed for {city}")
+            for line in stdout.split('\n'):
+                if any(kw in line for kw in ['fetched', 'Stored', 'Generated', 'Uploaded']):
+                    logger.info(f"  {line.strip()}")
+        else:
+            logger.error(f"❌ Blog ingestion failed for {city}")
+            if stderr:
+                logger.error(stderr[:500])
+    
+    except Exception as e:
+        logger.error(f"❌ Exception during blog ingestion: {e}")
 
 
 def run_foursquare_enrichment(

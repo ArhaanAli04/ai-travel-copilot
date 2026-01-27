@@ -112,12 +112,24 @@ class BlogPost(BaseModel):
     blog_name: str
     city: str
     tags: List[str] = Field(default_factory=list)
-    scraped_at: datetime = Field(default_factory=datetime.utcnow)
+    ingested_at: datetime = Field(default_factory=datetime.utcnow)
 
     model_config = {
         "populate_by_name": True,
         "arbitrary_types_allowed": True,
-        "json_encoders": {ObjectId: str}
+        "json_encoders": {ObjectId: str},
+        "json_schema_extra": {
+            "example": {
+                "title": "Best Street Food in Mumbai",
+                "content": "Mumbai's street food scene is legendary...",
+                "author": "Foodie Explorer",
+                "url": "https://mumbaifoodblog.com/street-food",
+                "published_at": "2026-01-20T10:00:00",
+                "blog_name": "Mumbai Food Blog",
+                "city": "mumbai",
+                "tags": ["food", "street food", "vada pav"]
+            }
+        }
     }
 
 
