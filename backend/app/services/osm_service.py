@@ -10,7 +10,6 @@ from app.core.mongo import get_database
 from app.services.embedding_service import embedding_service
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -26,17 +25,54 @@ class OSMService:
         "delhi": [28.4000, 76.8400, 28.8800, 77.3500],
     }
     
-    # POI categories to fetch from OSM
+    # ✅ EXPANDED POI categories with proper OSM tags
     POI_QUERIES = {
+        # Food & Drink (amenity)
         "restaurant": '[amenity=restaurant]',
         "cafe": '[amenity=cafe]',
         "bar": '[amenity=bar]',
+        "pub": '[amenity=pub]',
         "fast_food": '[amenity=fast_food]',
-        "attraction": '[tourism~"attraction|museum|gallery|viewpoint"]',
+        "food_court": '[amenity=food_court]',
+        "ice_cream": '[amenity=ice_cream]',
+        
+        # Tourism attractions (tourism)
+        "attraction": '[tourism=attraction]',
+        "museum": '[tourism=museum]',
+        "gallery": '[tourism=gallery]',
+        "viewpoint": '[tourism=viewpoint]',
+        "zoo": '[tourism=zoo]',
+        "aquarium": '[tourism=aquarium]',
+        "theme_park": '[tourism=theme_park]',
+        "artwork": '[tourism=artwork]',
+        
+        # Accommodation (tourism)
+        "hotel": '[tourism=hotel]',
+        "hostel": '[tourism=hostel]',
+        "guest_house": '[tourism=guest_house]',
+        
+        # Recreation (leisure)
         "park": '[leisure=park]',
         "garden": '[leisure=garden]',
+        "playground": '[leisure=playground]',
+        "beach": '[leisure=beach_resort]',
+        "sports_centre": '[leisure=sports_centre]',
+        
+        # Entertainment (amenity)
+        "cinema": '[amenity=cinema]',
+        "theatre": '[amenity=theatre]',
+        "nightclub": '[amenity=nightclub]',
+        
+        # Shopping (shop/amenity)
+        "mall": '[shop=mall]',
+        "marketplace": '[amenity=marketplace]',
+        "supermarket": '[shop=supermarket]',
+        
+        # Culture & Heritage (historic/amenity)
         "monument": '[historic=monument]',
-        "market": '[amenity=marketplace]',
+        "memorial": '[historic=memorial]',
+        "place_of_worship": '[amenity=place_of_worship]',
+        "archaeological_site": '[historic=archaeological_site]',
     }
     
     def __init__(self):
@@ -83,7 +119,12 @@ class OSMService:
         
         # Determine categories to fetch
         if categories is None:
-            categories = list(self.POI_QUERIES.keys())
+            # ✅ Default to most popular categories (not all 30+)
+            categories = [
+                "restaurant", "cafe", "bar", "fast_food",
+                "attraction", "museum", "viewpoint", "monument",
+                "park", "garden", "hotel"
+            ]
         
         all_pois = []
         
@@ -136,10 +177,11 @@ class OSMService:
                 if poi:
                     pois.append(poi)
             
+            logger.info(f"  Found {len(pois)} {category} POIs")
             return pois
         
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error querying Overpass API: {e}")
+            logger.error(f"Error querying Overpass API for {category}: {e}")
             return []
     
     def _parse_osm_element(
@@ -196,23 +238,28 @@ class OSMService:
         """Generate natural language description from OSM tags"""
         parts = [name]
         
-        # Add cuisine/type info
-        if "cuisine" in tags:
-            parts.append(f"{tags['cuisine'].replace('_', ' ')} {category}")
+        # Add cuisine/type info for food places
+        if category in ["restaurant", "cafe", "bar", "fast_food", "pub"]:
+            if "cuisine" in tags:
+                parts.append(f"{tags['cuisine'].replace('_', ' ')} {category}")
+            else:
+                parts.append(category)
         else:
+            # For non-food places, just add category
             parts.append(category)
         
-        # Add dietary info
-        dietary = []
-        if tags.get("diet:vegetarian") == "yes":
-            dietary.append("vegetarian-friendly")
-        if tags.get("diet:vegan") == "yes":
-            dietary.append("vegan options")
-        if tags.get("diet:halal") == "yes":
-            dietary.append("halal")
-        
-        if dietary:
-            parts.append(f"with {', '.join(dietary)}")
+        # Add dietary info (only for food places)
+        if category in ["restaurant", "cafe", "fast_food"]:
+            dietary = []
+            if tags.get("diet:vegetarian") == "yes":
+                dietary.append("vegetarian-friendly")
+            if tags.get("diet:vegan") == "yes":
+                dietary.append("vegan options")
+            if tags.get("diet:halal") == "yes":
+                dietary.append("halal")
+            
+            if dietary:
+                parts.append(f"with {', '.join(dietary)}")
         
         # Add location context
         if "addr:suburb" in tags:
@@ -221,10 +268,18 @@ class OSMService:
             parts.append(f"in {city.title()}")
         
         # Add special features
+        features = []
         if tags.get("outdoor_seating") == "yes":
-            parts.append("Features outdoor seating")
+            features.append("outdoor seating")
         if tags.get("takeaway") == "yes":
-            parts.append("Offers takeaway")
+            features.append("takeaway")
+        if tags.get("wheelchair") == "yes":
+            features.append("wheelchair accessible")
+        if tags.get("wifi") == "yes" or tags.get("internet_access") == "wlan":
+            features.append("WiFi")
+        
+        if features:
+            parts.append(f"Features {', '.join(features)}")
         
         return ". ".join(parts) + "."
     

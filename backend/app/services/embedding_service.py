@@ -20,7 +20,7 @@ class EmbeddingService:
         
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
         # Use latest model with configurable dimensions
-        self.model_name = "models/text-embedding-004"
+        self.model_name = "gemini-embedding-001"
         self.dimension = 768  # Optimized for storage (vs default 3072)
         self.batch_size = 100  # Process embeddings in batches
         self.rate_limit_delay = 0.1  # Delay between API calls (seconds)

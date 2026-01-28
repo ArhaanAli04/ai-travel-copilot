@@ -1,7 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
 import logging
-
+import certifi
 logger = logging.getLogger(__name__)
 
 # Global MongoDB client
@@ -15,7 +15,13 @@ async def connect_to_mongo():
     """
     global mongo_client, database
     try:
-        mongo_client = AsyncIOMotorClient(settings.MONGODB_URL)
+        mongo_client = AsyncIOMotorClient(
+            settings.MONGODB_URL,
+            tlsCAFile=certifi.where(),  # Use certifi's certificate bundle
+            serverSelectionTimeoutMS=5000,  # 5 second timeout
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000,    
+        )
         # Get database name from connection string or use default
         database = mongo_client.get_database("travel_copilot")
         
