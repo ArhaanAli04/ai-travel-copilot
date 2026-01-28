@@ -32,6 +32,23 @@ async def ingest_city_pois(city: str, categories: List[str] = None):
         city: City name (mumbai, goa, delhi)
         categories: Optional list of categories to ingest
     """
+    # NEW: Check storage before ingestion
+    logger.info("Checking storage capacity...")
+    
+    # Estimate: assume ~1500 POIs per city
+    estimated_vectors = 1500
+    impact = qdrant_service.estimate_ingestion_impact(estimated_vectors, vector_dimension=768)
+    
+    if not impact['is_safe']:
+        logger.error(f"❌ {impact['warning']}")
+        logger.error(f"   Projected usage: {impact['projected_usage_percentage']:.2f}%")
+        response = input("Continue anyway? (yes/no): ")
+        if response.lower() != 'yes':
+            logger.info("Ingestion cancelled")
+            return
+    else:
+        logger.info(f"✅ Storage check passed ({impact['projected_usage_percentage']:.2f}% projected)")
+        
     logger.info(f"\n{'='*60}")
     logger.info(f"Starting POI ingestion for {city.upper()}")
     logger.info(f"{'='*60}\n")

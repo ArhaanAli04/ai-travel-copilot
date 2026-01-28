@@ -89,6 +89,23 @@ async def ingest_city_blogs(
         days_back: How many days back to fetch
         include_general: Include general India feeds
     """
+    # NEW: Check storage before ingestion
+    logger.info("Checking storage capacity...")
+    
+    # Estimate: assume ~1500 POIs per city
+    estimated_vectors = 1500
+    impact = qdrant_service.estimate_ingestion_impact(estimated_vectors, vector_dimension=768)
+    
+    if not impact['is_safe']:
+        logger.error(f"❌ {impact['warning']}")
+        logger.error(f"   Projected usage: {impact['projected_usage_percentage']:.2f}%")
+        response = input("Continue anyway? (yes/no): ")
+        if response.lower() != 'yes':
+            logger.info("Ingestion cancelled")
+            return
+    else:
+        logger.info(f"✅ Storage check passed ({impact['projected_usage_percentage']:.2f}% projected)")
+
     logger.info(f"\n{'='*60}")
     logger.info(f"Starting Blog RSS ingestion for {city.upper()}")
     logger.info(f"{'='*60}\n")
