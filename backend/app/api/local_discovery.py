@@ -2,13 +2,13 @@
 API routes for Local Discovery - Hybrid search for POIs, tips, and blogs
 """
 from fastapi import APIRouter, Query, HTTPException
-from typing import List, Optional
+from typing import List, Optional,Dict
 from pydantic import BaseModel, Field
 import logging
-
+from app.ai.local_agent import local_agent
 from app.services.local_discovery_service import local_discovery_service
 from app.utils.geo_utils import get_city_coordinates
-
+from app.models.local_discovery import SuggestRequest, SuggestResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/local", tags=["Local Discovery"])
@@ -227,6 +227,67 @@ async def get_available_cities():
         "total": len(CITY_COORDINATES)
     }
 
+@router.post("/suggest", response_model=SuggestResponse)
+async def suggest_local_experiences(request: SuggestRequest):
+    """
+    Generate personalized local recommendations using RAG
+    
+    Example request:
+    ```json
+    {
+        "query": "romantic dinner spot",
+        "user_location": {"lat": 19.0596, "lon": 72.8295},
+        "city": "mumbai",
+        "preferences": {
+            "dietary": ["vegetarian"],
+            "budget": "moderate"
+        }
+    }
+    ```
+    """
+    try:
+        # Call agent
+        result = await local_agent.suggest_local_experiences(
+            user_query=request.query,
+            lat=request.user_location.lat,
+            lon=request.user_location.lon,
+            city=request.city,
+            preferences=request.preferences.model_dump() if request.preferences else None,
+            radius_km=request.radius_km,
+            max_results=request.max_results
+        )
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"Error in suggest endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pois/{poi_id}", response_model=Dict)
+async def get_poi_details(poi_id: str):
+    """
+    Get full POI details from MongoDB
+    
+    Args:
+        poi_id: MongoDB ObjectId of the POI
+        
+    Returns:
+        Complete POI document with all fields
+    """
+    try:
+        poi = await local_agent.get_poi_details(poi_id)
+        
+        if not poi:
+            raise HTTPException(status_code=404, detail=f"POI {poi_id} not found")
+        
+        return poi
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching POI {poi_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/health")
 async def health_check():
