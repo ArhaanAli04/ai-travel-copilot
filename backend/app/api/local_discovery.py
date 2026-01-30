@@ -8,7 +8,10 @@ import logging
 from app.ai.local_agent import local_agent
 from app.services.local_discovery_service import local_discovery_service
 from app.utils.geo_utils import get_city_coordinates
-from app.models.local_discovery import SuggestRequest, SuggestResponse
+from app.models.local_discovery import SuggestRequest, SuggestResponse, POIFeedbackResponse, POIFeedbackSubmit, TrendingPOI, TrendingResponse, AnalyticsStats
+import time
+from app.services.feedback_service import feedback_service
+from app.services.analytics_service import analytics_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/local", tags=["Local Discovery"])
@@ -245,6 +248,7 @@ async def suggest_local_experiences(request: SuggestRequest):
     }
     ```
     """
+    start_time = time.time()
     try:
         # Call agent
         result = await local_agent.suggest_local_experiences(
@@ -256,7 +260,19 @@ async def suggest_local_experiences(request: SuggestRequest):
             radius_km=request.radius_km,
             max_results=request.max_results
         )
-        
+        # Calculate response time
+        response_time_ms = (time.time() - start_time) * 1000
+        # Log analytics (async, non-blocking)
+        await analytics_service.log_query(
+            query_text=request.query,
+            city=request.city,
+            user_location={"lat": request.user_location.lat, "lon": request.user_location.lon},
+            preferences=request.preferences.model_dump() if request.preferences else None,
+            results_count=len(result.get("recommendations", [])),
+            response_time_ms=response_time_ms,
+            user_id=None  # Add user_id from auth in future
+        )
+
         return result
     
     except Exception as e:
@@ -287,6 +303,115 @@ async def get_poi_details(poi_id: str):
         raise
     except Exception as e:
         logger.error(f"Error fetching POI {poi_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/feedback", response_model=POIFeedbackResponse)
+async def submit_poi_feedback(feedback: POIFeedbackSubmit):
+    """
+    Submit user feedback for a POI
+    
+    Example request:
+    ```json
+    {
+        "poi_id": "6973c6ad1a88ce574ab68798",
+        "user_id": "user_123",
+        "feedback_type": "thumbs_up",
+        "rating": 5,
+        "visited_at": "2026-01-29T12:00:00Z",
+        "comment": "Great coffee and ambiance!",
+        "tags": ["quiet", "good_wifi", "friendly_staff"]
+    }
+    ```
+    """
+    try:
+        result = await feedback_service.submit_feedback(
+            poi_id=feedback.poi_id,
+            user_id=feedback.user_id,
+            feedback_type=feedback.feedback_type.value,
+            rating=feedback.rating,
+            visited_at=feedback.visited_at,
+            comment=feedback.comment,
+            tags=feedback.tags
+        )
+        
+        return result
+    
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error submitting feedback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/trending", response_model=TrendingResponse)
+async def get_trending_pois(
+    city: str = Query(..., description="City name"),
+    category: Optional[str] = Query(None, description="Optional category filter"),
+    limit: int = Query(10, description="Max results", ge=1, le=50),
+    min_feedback: int = Query(3, description="Minimum feedback count", ge=1),
+    days: int = Query(30, description="Look back period in days", ge=1, le=90)
+):
+    """
+    Get trending POIs based on recent feedback and ratings
+    
+    Example:
+    /local/trending?city=mumbai&category=restaurant&limit=10
+    """
+    try:
+        trending_pois = await feedback_service.get_trending_pois(
+            city=city,
+            category=category,
+            limit=limit,
+            min_feedback_count=min_feedback,
+            days=days
+        )
+        
+        return {
+            "city": city,
+            "category": category,
+            "trending_pois": trending_pois,
+            "total": len(trending_pois),
+            "time_range": f"last_{days}_days"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting trending POIs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ANALYTICS ENDPOINTS (Day 22)
+# ============================================================================
+
+@router.get("/analytics/summary", response_model=AnalyticsStats)
+async def get_analytics_summary(
+    city: Optional[str] = Query(None, description="Optional city filter"),
+    days: int = Query(7, description="Look back period", ge=1, le=90)
+):
+    """
+    Get analytics summary for queries
+    
+    Returns:
+    - Total queries
+    - Popular cities
+    - Popular search times
+    - Common preferences
+    - Average response time
+    """
+    try:
+        summary = await analytics_service.get_analytics_summary(city=city, days=days)
+        
+        return {
+            "total_queries": summary.get("total_queries", 0),
+            "popular_cities": summary.get("popular_cities", []),
+            "popular_categories": summary.get("common_preferences", {}).get("categories", []),
+            "popular_times": summary.get("popular_times", []),
+            "common_preferences": summary.get("common_preferences", {}),
+            "avg_response_time_ms": summary.get("avg_response_time_ms", 0)
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting analytics summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/health")

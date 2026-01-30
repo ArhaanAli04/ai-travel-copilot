@@ -384,7 +384,12 @@ class LocalDiscoveryAgent:
                     "reason": rec.get("reason", ""),
                     "highlights": rec.get("highlights", []),
                     "best_for": rec.get("best_for", ""),
-                    "relevance_score": poi.get("relevance_score")
+                    "relevance_score": poi.get("relevance_score"),
+                    # NEW: Add feedback stats (Day 22)
+                    "average_rating": poi.get("average_rating", 0.0),
+                    "feedback_count": poi.get("feedback_count", 0),
+                    "positive_feedback_count": poi.get("positive_feedback_count", 0),
+                    "negative_feedback_count": poi.get("negative_feedback_count", 0)
                 })
             else:
                 logger.warning(f"  ⚠️ Could not find POI: {poi_name}")

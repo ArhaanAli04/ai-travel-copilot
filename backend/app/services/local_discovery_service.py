@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, time
 import logging
 
-from app.core.mongo import get_database
+from app.core.mongo import get_database,connect_to_mongo
 from app.services.qdrant_service import qdrant_service
 from app.services.embedding_service import embedding_service
 from app.utils.geo_utils import calculate_distance, get_city_coordinates
@@ -81,6 +81,9 @@ class LocalDiscoveryService:
         if query:
             pois = await self._score_pois_by_query(query, pois)
         
+        # Step 3.5: Apply feedback boost to scores (NEW - Day 22)
+        pois = await self._apply_feedback_boost(pois)
+
         # Step 4: Add distance to each POI
         for poi in pois:
             if "location" in poi and "coordinates" in poi["location"]:
@@ -133,7 +136,10 @@ class LocalDiscoveryService:
             List of POI documents
         """
         db = get_database()
-        
+        if db is None:
+            logger.error("❌ Database not connected!")
+            await connect_to_mongo()
+            db = get_database()
         # Build MongoDB query
         query = {
             "city": city.lower(),
@@ -277,6 +283,54 @@ class LocalDiscoveryService:
         
         return pois
     
+    async def _apply_feedback_boost(self, pois: List[Dict]) -> List[Dict]:
+        """
+        Apply feedback-based boost to POI relevance scores
+        
+        Args:
+            pois: List of POIs with relevance_score
+            
+        Returns:
+            POIs with boosted scores
+        """
+        try:
+            from app.services.feedback_service import feedback_service
+            
+            if not pois:
+                return pois
+            
+            # Extract POI IDs
+            poi_ids = [str(poi["_id"]) for poi in pois]
+            
+            # Get boost scores
+            boost_scores = await feedback_service.get_feedback_boost_scores(poi_ids)
+            
+            # Apply boost to relevance scores
+            for poi in pois:
+                poi_id_str = str(poi["_id"])
+                boost = boost_scores.get(poi_id_str, 1.0)
+                
+                # Apply boost to existing score
+                if "relevance_score" in poi:
+                    original_score = poi["relevance_score"]
+                    poi["relevance_score"] = original_score * boost
+                    poi["feedback_boost"] = boost  # Store boost for debugging
+                else:
+                    # If no relevance score, use boost as base score
+                    poi["relevance_score"] = boost
+                    poi["feedback_boost"] = boost
+            
+            # Re-sort by boosted scores
+            pois.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+            
+            logger.info(f"   ⭐ Applied feedback boost to {len(pois)} POIs")
+            
+            return pois
+        
+        except Exception as e:
+            logger.error(f"❌ Error applying feedback boost: {e}")
+            return pois  # Return unchanged on error
+
     def _format_distance(self, distance_km: float) -> str:
         """Format distance in human-readable format"""
         if distance_km < 1:
