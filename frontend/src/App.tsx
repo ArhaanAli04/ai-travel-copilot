@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Planner from './pages/Planner';
 import DisruptionPage from './pages/DisruptionPage'; 
+import LocalDiscovery from './pages/LocalDiscovery';
 // Placeholder components (keep for future)
 const Home = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -48,7 +49,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/planner" element={<Planner />} />
         <Route path="/disruption" element={<DisruptionPage />} />
-        <Route path="/local" element={<Local />} />
+        <Route path="/local" element={<LocalDiscovery />} />
         <Route path="/safety" element={<Safety />} />
       </Routes>
     </Router>

@@ -53,6 +53,7 @@ class LocalDiscoveryAgent:
         """
         try:
             logger.info(f"🤖 Local Agent - Processing query: '{user_query}'")
+            logger.info(f"🎯 Preferences received: {preferences}")
             
             # Step 1: Get POI candidates + context using hybrid search
             search_results = await local_discovery_service.hybrid_search(
@@ -67,6 +68,39 @@ class LocalDiscoveryAgent:
             )
             
             pois = search_results.get("pois", [])
+
+            # NEW: Fallback if no results with filters
+            if not pois and (preferences and (preferences.get("cuisines") or preferences.get("categories"))):
+                logger.warning("  ⚠️ No POIs found with filters, retrying without cuisine filter...")
+                
+                # Retry with only category filter (no cuisine)
+                search_results = await local_discovery_service.hybrid_search(
+                    query=user_query,
+                    user_location={"lat": lat, "lon": lon},
+                    city=city,
+                    radius_km=radius_km,
+                    categories=self._extract_categories_from_preferences(preferences),
+                    cuisines=None,  # Remove cuisine filter
+                    limit=15,
+                    include_context=True
+                )
+                pois = search_results.get("pois", [])
+                
+                # If still no results, remove all filters
+                if not pois:
+                    logger.warning("  ⚠️ No POIs found with category filter, retrying without filters...")
+                    search_results = await local_discovery_service.hybrid_search(
+                        query=user_query,
+                        user_location={"lat": lat, "lon": lon},
+                        city=city,
+                        radius_km=radius_km,
+                        categories=None,
+                        cuisines=None,
+                        limit=15,
+                        include_context=True
+                    )
+                    pois = search_results.get("pois", [])
+
             context_docs = search_results.get("context", [])
             
             if not pois:
@@ -106,6 +140,9 @@ class LocalDiscoveryAgent:
                 pois
             )
             
+            # Step 4.5: Remove duplicates (NEW)
+            enriched_recommendations = self._deduplicate_recommendations(enriched_recommendations)
+
             # Step 5: Extract sources
             sources = self._extract_sources(context_docs)
             
@@ -133,7 +170,18 @@ class LocalDiscoveryAgent:
         if not preferences:
             return None
         
-        categories = preferences.get("categories", [])
+        categories = preferences.get("categories") or []
+        categories=list(categories)
+
+        # Also check cuisines for category-like values (cafe, restaurant, bar, etc.)
+        cuisines = preferences.get("cuisines") or []
+        category_keywords = ["cafe", "restaurant", "bar", "pub", "bakery", "fast_food"]
+
+        for cuisine in cuisines:
+            if cuisine and cuisine.lower() in category_keywords and cuisine not in categories:
+                categories.append(cuisine.lower())
+        
+        logger.info(f"  📂 Extracted categories: {categories}")
         return categories if categories else None
     
     def _extract_cuisines_from_preferences(
@@ -145,11 +193,16 @@ class LocalDiscoveryAgent:
             return None
         
         # Check both 'cuisines' and 'dietary' keys
-        cuisines = preferences.get("cuisines", [])
+        cuisines = preferences.get("cuisines") or []
+        cuisines=list(cuisines)
         #dietary = preferences.get("dietary", [])
+        # Filter out category-like values
+        category_keywords = ["cafe", "restaurant", "bar", "pub", "bakery", "fast_food"]
+        actual_cuisines = [c for c in cuisines if c and c.lower() not in category_keywords]
         
+        logger.info(f"  🍽️ Extracted cuisines: {actual_cuisines}")
         
-        return cuisines if cuisines else None
+        return actual_cuisines if actual_cuisines else None
     
     def _build_rag_prompt(
         self,
@@ -184,14 +237,25 @@ class LocalDiscoveryAgent:
         
         # Add preferences if provided
         if preferences:
+            user_context += "\n**User Preferences (IMPORTANT - Follow these strictly):**\n"
+            
             if preferences.get("dietary"):
-                user_context += f"- Dietary Preferences: {', '.join(preferences['dietary'])}\n"
+                user_context += f"  - ⚠️ DIETARY RESTRICTIONS: {', '.join(preferences['dietary'])} (MUST match)\n"
+            
+            if preferences.get("cuisines"):
+                user_context += f"  - 🍽️ CUISINE PREFERENCES: {', '.join(preferences['cuisines'])} (Prioritize these)\n"
+            
+            if preferences.get("categories"):
+                user_context += f"  - 📂 PLACE CATEGORIES: {', '.join(preferences['categories'])} (Filter by these)\n"
+            
             if preferences.get("budget"):
-                user_context += f"- Budget: {preferences['budget']}\n"
+                user_context += f"  - 💰 Budget: {preferences['budget']}\n"
+            
             if preferences.get("time_constraint"):
-                user_context += f"- Time Available: {preferences['time_constraint']}\n"
+                user_context += f"  - ⏱️ Time Available: {preferences['time_constraint']}\n"
+            
             if preferences.get("group_size"):
-                user_context += f"- Group Size: {preferences['group_size']}\n"
+                user_context += f"  - 👥 Group Size: {preferences['group_size']} people\n"
         
         # Build POI candidates section
         poi_section = "\n**Available Places (POI Candidates):**\n"
@@ -270,10 +334,12 @@ class LocalDiscoveryAgent:
 
         **Instructions:**
         1. Analyze the user's query and preferences carefully
-        2. Select the TOP 5 most suitable places from the POI candidates
-        3. Consider: relevance to query, distance, opening hours, dietary needs, and user preferences
-        4. Provide a brief, engaging reason for each recommendation (1-2 sentences)
-        5. If the query is time-sensitive (e.g., "open now"), prioritize places likely to be open
+        2. **STRICTLY FILTER** by user's dietary restrictions and category preferences if provided
+        3. Select the TOP 5 most suitable places from the POI candidates that match the preferences
+        4. Consider: relevance to query, distance, opening hours, dietary needs, and user preferences
+        5. Provide a brief, engaging reason for each recommendation (2-3 sentences)
+        6. If the query is time-sensitive (e.g., "open now"), prioritize places likely to be open
+        7. **DO NOT recommend places that don't match user's category/cuisine preferences**
 
         **Output Format (JSON):**
         Return ONLY a valid JSON object with this structure:
@@ -395,6 +461,32 @@ class LocalDiscoveryAgent:
                 logger.warning(f"  ⚠️ Could not find POI: {poi_name}")
         
         return enriched
+
+    def _deduplicate_recommendations(self, recommendations: List[Dict]) -> List[Dict]:
+        """
+        Remove duplicate places based on name and address
+        
+        Sometimes the same place appears multiple times in the database
+        with slightly different coordinates or IDs
+        """
+        seen = set()
+        deduplicated = []
+        
+        for rec in recommendations:
+            # Create unique key from name + address
+            name = (rec.get("name") or "").lower().strip()
+            address = (rec.get("address") or "").lower().strip()
+            
+            # Use first 50 chars of address to handle minor variations
+            key = f"{name}_{address[:50]}"
+            
+            if key not in seen:
+                seen.add(key)
+                deduplicated.append(rec)
+            else:
+                logger.warning(f"  🚫 Removed duplicate: {rec.get('name')}")
+        
+        return deduplicated
 
     def _extract_sources(self, context_docs: List[Dict]) -> List[Dict]:
         """Extract source information from context documents"""

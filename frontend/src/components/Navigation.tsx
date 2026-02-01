@@ -5,7 +5,7 @@ import { Plane } from 'lucide-react';
 const navItems = [
   { name: "Planner", path: "/planner" },
   { name: "Disruption", path: "/disruption" },
-  { name: "Local", path: "/local" },
+  { name: "Local Discovery", path: "/local" },  // ✅ Just update the name
   { name: "Safety", path: "/safety" },
 ];
 

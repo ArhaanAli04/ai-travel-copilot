@@ -156,11 +156,31 @@ class LocalDiscoveryService:
         
         # Add category filter
         if categories:
-            query["category"] = {"$in": categories}
+            categories_lower = [cat.lower() for cat in categories]
+            query["category"] = {"$in": categories_lower}
         
         # Add cuisine filter
         if cuisines:
-            query["tags.cuisine"] = {"$in": cuisines}
+            # Build $or conditions for flexible matching
+            cuisine_patterns = []
+            for cuisine in cuisines:
+                cuisine_patterns.append({
+                    "tags.cuisine": {
+                        "$regex": f"^{cuisine}$",
+                        "$options": "i"  # case-insensitive
+                    }
+                })
+            
+            # Add to query
+            if cuisine_patterns:
+                if "$or" in query:
+                    # Merge with existing $or
+                    query["$and"] = [
+                        {"$or": query.pop("$or")},
+                        {"$or": cuisine_patterns}
+                    ]
+                else:
+                    query["$or"] = cuisine_patterns
         
         # Execute query
         cursor = db.pois.find(query).limit(limit)
