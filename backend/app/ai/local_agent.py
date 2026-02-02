@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
 import logging
-
+from difflib import get_close_matches
 from app.services.local_discovery_service import local_discovery_service
 from app.ai.gemini_client import get_gemini_client
 from app.core.mongo import get_database
@@ -55,6 +55,13 @@ class LocalDiscoveryAgent:
             logger.info(f"🤖 Local Agent - Processing query: '{user_query}'")
             logger.info(f"🎯 Preferences received: {preferences}")
             
+            # ✅ NEW: Extract preferences from query if not provided
+            if not preferences or not any(preferences.values()):
+                logger.info("  🧠 No preferences set, extracting from query...")
+                extracted_prefs = await self._extract_preferences_from_query(user_query)
+                preferences = extracted_prefs
+                logger.info(f"  ✅ Extracted preferences: {preferences}")
+
             # Step 1: Get POI candidates + context using hybrid search
             search_results = await local_discovery_service.hybrid_search(
                 query=user_query,
@@ -134,6 +141,21 @@ class LocalDiscoveryAgent:
                 max_results=max_results
             )
             
+            # ✅ NEW: Fallback if no recommendations
+            if not recommendations and len(pois) >= 3:
+                logger.warning("  ⚠️ No recommendations generated, retrying with relaxed prompt...")
+                
+                # Build a simpler prompt without strict filtering
+                fallback_prompt = self._build_fallback_prompt(
+                    user_query=user_query,
+                    pois=pois[:10]
+                )
+                
+                recommendations = await self._generate_recommendations(
+                    fallback_prompt,
+                    max_results=max_results
+                )
+
             # Step 4: Enrich recommendations with full POI data
             enriched_recommendations = await self._enrich_recommendations(
                 recommendations,
@@ -192,15 +214,25 @@ class LocalDiscoveryAgent:
         if not preferences:
             return None
         
-        # Check both 'cuisines' and 'dietary' keys
-        cuisines = preferences.get("cuisines") or []
-        cuisines=list(cuisines)
-        #dietary = preferences.get("dietary", [])
+        # Get cuisines from preferences
+        cuisines = preferences.get("cuisines")
+        if not cuisines:
+            return None
+        
+        # Ensure it's a list
+        if not isinstance(cuisines, list):
+            cuisines = [cuisines]
+        
         # Filter out category-like values
         category_keywords = ["cafe", "restaurant", "bar", "pub", "bakery", "fast_food"]
-        actual_cuisines = [c for c in cuisines if c and c.lower() not in category_keywords]
+        actual_cuisines = [
+            cuisine for cuisine in cuisines 
+            if cuisine and cuisine.lower() not in category_keywords
+        ]
+        # ✅ Use print instead of logger to debug
+        if actual_cuisines:
+            logger.info("  🍽️ Extracted cuisines: %s", actual_cuisines)
         
-        logger.info(f"  🍽️ Extracted cuisines: {actual_cuisines}")
         
         return actual_cuisines if actual_cuisines else None
     
@@ -269,7 +301,7 @@ class LocalDiscoveryAgent:
             hours = poi.get("hours", "Hours not available")
             
             poi_section += f"""
-            {idx}. **{name}**
+            {idx}. **{name}** (Cuisine: {cuisine})
             - Category: {category}
             - Distance: {distance_text}
             - Cuisine: {cuisine if cuisine else 'N/A'}
@@ -334,12 +366,22 @@ class LocalDiscoveryAgent:
 
         **Instructions:**
         1. Analyze the user's query and preferences carefully
-        2. **STRICTLY FILTER** by user's dietary restrictions and category preferences if provided
-        3. Select the TOP 5 most suitable places from the POI candidates that match the preferences
-        4. Consider: relevance to query, distance, opening hours, dietary needs, and user preferences
-        5. Provide a brief, engaging reason for each recommendation (2-3 sentences)
-        6. If the query is time-sensitive (e.g., "open now"), prioritize places likely to be open
-        7. **DO NOT recommend places that don't match user's category/cuisine preferences**
+        2. **IMPORTANT:** Select ONLY from the "Available Places (POI Candidates)" list above
+        3. **CRITICAL:** Use the EXACT POI names as written in the candidates list - copy them character-by-character
+        4. **DO NOT make up, modify, or invent any place names**
+        5. **DO NOT add extra words or change spelling of POI names** (e.g., don't change "Mainland China" to "Mainlaand China")
+        6. If user preferences are provided, STRICTLY FILTER by dietary restrictions and category preferences
+        7. If NO preferences are set but the query mentions constraints (e.g., "Chinese cuisine", "moderate budget", "group of 4"), use the POI list flexibly and match based on the query context and available POI information
+        8. Consider: relevance to query, distance, opening hours, dietary needs, and user preferences/query requirements
+        9. Prioritize POIs that best match the query intent, even if not perfect matches
+        10. If you cannot find 5 suitable places, return fewer recommendations (quality over quantity)
+
+        **CRITICAL RULE:** The "poi_name" in your response MUST be an EXACT CHARACTER-BY-CHARACTER COPY from the "Available Places" list above. Look at the list, find the place, and copy-paste the name precisely. Do not modify or invent names.
+        
+        **Matching Strategy:**
+        - If user preferences are set (cuisines, categories, dietary): Follow them STRICTLY
+        - If NO preferences but query mentions requirements: Match based on POI tags, cuisine info, and context - be flexible and use best judgment
+        - Always prioritize relevance to the user's stated needs
 
         **Output Format (JSON):**
         Return ONLY a valid JSON object with this structure:
@@ -347,13 +389,22 @@ class LocalDiscoveryAgent:
         {{
         "recommendations": [
             {{
-            "poi_name": "Exact name from POI list",
-            "reason": "Why this place matches the user's needs",
+            "poi_name": "Exact name from POI list -copy it precisely",
+            "reason": "Why this place matches the user's needs(2-3 sentences)",
             "highlights": ["key feature 1", "key feature 2"],
             "best_for": "Quick description of ideal use case"
             }}
         ]
         }}
+        Example of CORRECT name matching:
+
+            POI list has: "Mainland China"
+
+            Your response: "poi_name": "Mainland China" ✅
+
+            NOT: "Mainlaand China" ❌
+
+            NOT: "Mainland China Restaurant" ❌
         Generate recommendations now:"""
         return prompt
     
@@ -422,17 +473,40 @@ class LocalDiscoveryAgent:
         Enrich recommendations with full POI data
         
         Matches recommendation names with POI objects and adds complete details
+        Uses fuzzy matching to handle slight name variations
         """
         enriched = []
         
         # Create POI lookup by name (case-insensitive)
         poi_lookup = {poi["name"].lower(): poi for poi in pois}
+        poi_names = list(poi_lookup.keys())
         
         for rec in recommendations:
             poi_name = rec.get("poi_name", "")
+            poi_name_lower = poi_name.lower()
             
-            # Find matching POI
-            poi = poi_lookup.get(poi_name.lower())
+            # Try exact match first
+            poi = poi_lookup.get(poi_name_lower)
+            
+            # If no exact match, try fuzzy matching
+            if not poi and poi_name:
+                logger.warning(f"  🔍 Exact match failed for: '{poi_name}', trying fuzzy match...")
+                
+                # Find close matches (allows for minor typos/spacing)
+                close_matches = get_close_matches(
+                    poi_name_lower,
+                    poi_names,
+                    n=1,
+                    cutoff=0.75  # 75% similarity threshold
+                )
+                
+                if close_matches:
+                    matched_name = close_matches[0]
+                    poi = poi_lookup[matched_name]
+                    logger.info(f"  ✅ Fuzzy matched '{poi_name}' → '{poi['name']}'")
+                else:
+                    logger.warning(f"  ⚠️ Could not find POI: '{poi_name}' (no close matches)")
+                    continue
             
             if poi:
                 enriched.append({
@@ -451,14 +525,12 @@ class LocalDiscoveryAgent:
                     "highlights": rec.get("highlights", []),
                     "best_for": rec.get("best_for", ""),
                     "relevance_score": poi.get("relevance_score"),
-                    # NEW: Add feedback stats (Day 22)
+                    # Feedback stats
                     "average_rating": poi.get("average_rating", 0.0),
                     "feedback_count": poi.get("feedback_count", 0),
                     "positive_feedback_count": poi.get("positive_feedback_count", 0),
                     "negative_feedback_count": poi.get("negative_feedback_count", 0)
                 })
-            else:
-                logger.warning(f"  ⚠️ Could not find POI: {poi_name}")
         
         return enriched
 
@@ -544,5 +616,78 @@ class LocalDiscoveryAgent:
             logger.error(f"❌ Error fetching POI {poi_id}: {e}")
             return None
 
+    def _build_fallback_prompt(self, user_query: str, pois: List[Dict]) -> str:
+        """Build a simpler prompt when strict filtering fails"""
+        
+        poi_list = "\n".join([
+            f"{i+1}. **{poi.get('name')}** - {poi.get('category')} - {poi.get('tags', {}).get('cuisine', 'N/A')} cuisine"
+            for i, poi in enumerate(pois)
+        ])
+        
+        return f"""You are a helpful local guide. The user asked: "{user_query}"
+
+    Here are nearby places:
+    {poi_list}
+
+    Recommend the top 3-5 places that best match the user's request. Use EXACT names from the list above.
+
+    Return JSON:
+    {{
+    "recommendations": [
+        {{
+        "poi_name": "EXACT name from list",
+        "reason": "Why this matches",
+        "highlights": ["feature 1", "feature 2"],
+        "best_for": "Use case"
+        }}
+    ]
+    }}"""
+
+    async def _extract_preferences_from_query(self, query: str) -> Dict[str, Any]:
+        """
+        Extract preferences from natural language query using Gemini
+        
+        Examples:
+        - "Mexican cuisine" → cuisines: ['Mexican']
+        - "high budget" → budget: 'expensive'
+        - "for a couple" → group_size: 2
+        """
+        try:
+            client = self._get_client()
+            
+            extraction_prompt = f"""Extract dining preferences from this query. Return JSON.
+
+    Query: "{query}"
+
+    Extract:
+    - cuisines: List of cuisine types mentioned (e.g., ["Chinese", "Mexican","Italian","Indian"])
+    - categories: List of place types (e.g., ["restaurant", "cafe", "bar"])
+    - budget: One of: "budget", "moderate", "expensive", "luxury" (or null)
+    - group_size: Number of people (extract from "couple"=2, "group"=4-6, "solo"=1, or null)
+
+    Return ONLY valid JSON:
+    {{
+    "cuisines": [],
+    "categories": [],
+    "budget": null,
+    "group_size": null
+    }}"""
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=extraction_prompt,
+                config={
+                    "temperature": 0.3,
+                    "response_mime_type": "application/json"
+                }
+            )
+            
+            extracted = json.loads(response.text.strip())
+            logger.info(f"  🧠 NLU extracted from query: {extracted}")
+            return extracted
+        
+        except Exception as e:
+            logger.error(f"❌ Failed to extract preferences: {e}")
+            return {}
 #Singleton instance
 local_agent = LocalDiscoveryAgent()
