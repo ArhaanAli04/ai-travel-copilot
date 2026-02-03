@@ -155,3 +155,19 @@
 .animate-scale-in {
   animation: scale-in 0.2s ease-out;
 }
+
+
+  /* Custom tooltip styling */
+.custom-tooltip {
+    background: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    padding: 8px 12px !important;
+  }
+  
+.custom-tooltip::before {
+    border-top-color: white !important;
+  }
+
+

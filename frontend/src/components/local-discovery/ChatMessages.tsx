@@ -12,12 +12,14 @@ interface ChatMessagesProps {
   messages: Message[];
   loading: boolean;
   onFeedback?: (poiId: string, feedbackType: 'thumbs_up' | 'thumbs_down') => void;
+  onOpenMap?: (pois: any[]) => void; // ✅ Already added
 }
 
 export const ChatMessages: React.FC<ChatMessagesProps> = ({
   messages,
   loading,
   onFeedback,
+  onOpenMap, // ✅ Already added
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,6 +52,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
               key={message.id}
               message={message}
               onFeedback={onFeedback}
+              onOpenMap={onOpenMap} // ✅ ADD THIS LINE - Pass to MessageBubble
             />
           ))}
 

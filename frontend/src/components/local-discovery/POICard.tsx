@@ -38,7 +38,8 @@ export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+    <div id={`poi-${poi.poi_id}`}
+    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">

@@ -4,17 +4,22 @@
  */
 
 import React from 'react';
-import {type  Message } from '../../types/local-discovery';
+import { type Message } from '../../types/local-discovery';
 import { POICard } from './POICard';
-import { User, Bot } from 'lucide-react';
+import { User, Bot, MapPin } from 'lucide-react'; // ✅ MapPin already imported
 import { formatTime } from '../../utils/datetime';
 
 interface MessageBubbleProps {
   message: Message;
   onFeedback?: (poiId: string, feedbackType: 'thumbs_up' | 'thumbs_down') => void;
+  onOpenMap?: (pois: any[]) => void;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onFeedback }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({ 
+  message, 
+  onFeedback, 
+  onOpenMap 
+}) => {
   const isUser = message.role === 'user';
 
   return (
@@ -44,6 +49,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onFeedbac
         >
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
+
+        {/* ✅ ADD THIS: View on Map button (for assistant messages with POIs) */}
+        {!isUser && message.pois && message.pois.length > 0 && onOpenMap && (
+          <button
+            onClick={() => onOpenMap(message.pois!)}
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <MapPin className="w-4 h-4" />
+            View {message.pois.length} {message.pois.length === 1 ? 'place' : 'places'} on map
+          </button>
+        )}
 
         {/* POI Cards (for assistant messages) */}
         {!isUser && message.pois && message.pois.length > 0 && (
