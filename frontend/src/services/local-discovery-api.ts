@@ -104,12 +104,6 @@ export const getTrendingPOIs = async (
   }
 };
 
-// ============================================================================
-// CHAT SESSION MANAGEMENT (Using localStorage for now)
-// TODO: Move to backend API in future
-// ============================================================================
-
-
 
 /**
  * Create a new chat session
@@ -286,4 +280,54 @@ export const getUserId = (): string => {
   }
   
   return userId;
+};
+
+export const saveUserPreferences = async (
+  userId: string,
+  preferences: import('../types/local-discovery').UserPreferences
+): Promise<void> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/local/preferences`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        preferences,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save preferences');
+    }
+
+    console.log('✅ Preferences saved to backend');
+  } catch (error) {
+    console.error('Error saving preferences:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get user preferences from backend
+ */
+export const getUserPreferences = async (
+  userId: string
+): Promise<import('../types/local-discovery').UserPreferences> => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/local/preferences?user_id=${userId}`
+    );
+
+    if (!response.ok) {
+      return {}; // Return empty preferences if not found
+    }
+
+    const data = await response.json();
+    return data.preferences || {};
+  } catch (error) {
+    console.error('Error fetching preferences:', error);
+    return {};
+  }
 };

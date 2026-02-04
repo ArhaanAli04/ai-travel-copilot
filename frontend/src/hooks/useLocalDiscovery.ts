@@ -19,6 +19,8 @@ import {
   getSuggestions,
   getUserId,
   submitFeedback,
+  saveUserPreferences,
+  getUserPreferences,
 } from '../services/local-discovery-api';
 import { getCurrentLocation, getMockLocation } from '../utils/geolocation';
 import { getTimeOfDay, getGreeting } from '../utils/datetime';
@@ -46,6 +48,8 @@ export const useLocalDiscovery = () => {
       // Get user location
       await loadUserLocation();
 
+      //load saved preferences
+      await loadUserPreferences();
       // Load chat sessions
       await loadSessions();
     } catch (err) {
@@ -258,11 +262,21 @@ What are you looking for today?`,
     });
   };
 
-  const addPreference = (key: keyof UserPreferences, value: any) => {
-    setPreferences((prev) => ({
-      ...prev,
+  const addPreference =async (key: keyof UserPreferences, value: any) => {
+    const updatedPreferences = {
+      ...preferences,
       [key]: value,
-    }));
+    };
+    
+    setPreferences(updatedPreferences);
+
+    // ✅ Save to backend
+    try {
+      await saveUserPreferences(userId, updatedPreferences);
+    } catch (err) {
+      console.error('Failed to save preferences:', err);
+      setError('Failed to save preferences');
+    }
 
     // Add context chip
     const chipId = `pref_${key}`;
@@ -283,16 +297,21 @@ What are you looking for today?`,
     });
   };
 
-  const removePreference = (chipId: string) => {
+  const removePreference =async (chipId: string) => {
     setContextChips((prev) => prev.filter((chip) => chip.id !== chipId));
 
     // Extract preference key from chip ID
     const key = chipId.replace('pref_', '') as keyof UserPreferences;
-    setPreferences((prev) => {
-      const updated = { ...prev };
-      delete updated[key];
-      return updated;
-    });
+    const updatedPreferences = { ...preferences };
+    delete updatedPreferences[key];
+    setPreferences(updatedPreferences);
+    
+    // ✅ Save to backend
+    try {
+      await saveUserPreferences(userId, updatedPreferences);
+    } catch (err) {
+      console.error('Failed to save preferences:', err);
+    }
   };
   const handleFeedback = async (
       poiId: string,
@@ -313,6 +332,90 @@ What are you looking for today?`,
         setError('Failed to submit feedback');
       }
     };
+
+  const loadUserPreferences = async () => {
+  try {
+    const savedPreferences = await getUserPreferences(userId);
+    
+    if (Object.keys(savedPreferences).length > 0) {
+      setPreferences(savedPreferences);
+      updatePreferenceChips(savedPreferences);
+      console.log('✅ Loaded saved preferences:', savedPreferences);
+    }
+  } catch (err) {
+    console.error('Error loading preferences:', err);
+  }
+};
+
+const updatePreferenceChips = (prefs: UserPreferences) => {
+  const chips: ContextChip[] = [];
+  
+  if (prefs.dietary && prefs.dietary.length > 0) {
+    chips.push({
+      id: 'pref_dietary',
+      label: 'Dietary',
+      value: prefs.dietary.join(', '),
+      type: 'preference',
+      removable: true,
+    });
+  }
+  
+  if (prefs.cuisines && prefs.cuisines.length > 0) {
+    chips.push({
+      id: 'pref_cuisines',
+      label: 'Cuisines',
+      value: prefs.cuisines.join(', '),
+      type: 'preference',
+      removable: true,
+    });
+  }
+  
+  if (prefs.categories && prefs.categories.length > 0) {
+    chips.push({
+      id: 'pref_categories',
+      label: 'Categories',
+      value: prefs.categories.join(', '),
+      type: 'preference',
+      removable: true,
+    });
+  }
+  
+  if (prefs.budget) {
+    chips.push({
+      id: 'pref_budget',
+      label: 'Budget',
+      value: prefs.budget,
+      type: 'preference',
+      removable: true,
+    });
+  }
+  
+  if (prefs.time_constraint) {
+    chips.push({
+      id: 'pref_time_constraint',
+      label: 'Time_constraint',
+      value: prefs.time_constraint,
+      type: 'preference',
+      removable: true,
+    });
+  }
+  
+  if (prefs.group_size) {
+    chips.push({
+      id: 'pref_group_size',
+      label: 'Group_size',
+      value: prefs.group_size.toString(),
+      type: 'preference',
+      removable: true,
+    });
+  }
+  
+  setContextChips((prev) => {
+    // Keep location and time chips, replace preference chips
+    const nonPrefChips = prev.filter((chip) => chip.type !== 'preference');
+    return [...nonPrefChips, ...chips];
+  });
+};
   return {
     // State
     sessions,

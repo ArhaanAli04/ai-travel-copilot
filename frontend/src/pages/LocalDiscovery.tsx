@@ -78,9 +78,7 @@ const LocalDiscovery = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* DEBUG INFO - REMOVE LATER */}
-      <div className="fixed top-4 right-4 z-50 bg-black text-white text-xs p-2 rounded">
-        showMap: {showMap ? '✅ TRUE' : '❌ FALSE'} | POIs: {mapPOIs.length}
-      </div>
+      
 
       {/* Mobile Toggle */}
       {!showMap && (

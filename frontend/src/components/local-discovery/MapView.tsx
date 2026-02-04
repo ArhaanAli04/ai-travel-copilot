@@ -5,7 +5,7 @@
 import React, { useRef, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup,Tooltip, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { X, Navigation, Star, Minimize2 } from 'lucide-react';
+import { X, Navigation, Star } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icons

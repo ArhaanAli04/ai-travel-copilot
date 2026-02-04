@@ -8,10 +8,13 @@ import logging
 from app.ai.local_agent import local_agent
 from app.services.local_discovery_service import local_discovery_service
 from app.utils.geo_utils import get_city_coordinates
-from app.models.local_discovery import SuggestRequest, SuggestResponse, POIFeedbackResponse, POIFeedbackSubmit, TrendingPOI, TrendingResponse, AnalyticsStats
+from app.models.local_discovery import SuggestRequest, SuggestResponse, POIFeedbackResponse, POIFeedbackSubmit, TrendingPOI, TrendingResponse, AnalyticsStats, UserPreferencesSave,UserPreferencesResponse,SavePreferencesResponse, UserPreferences
 import time
+from datetime import datetime
 from app.services.feedback_service import feedback_service
 from app.services.analytics_service import analytics_service
+from app.services.preferences_service import preferences_service
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/local", tags=["Local Discovery"])
@@ -412,6 +415,104 @@ async def get_analytics_summary(
     
     except Exception as e:
         logger.error(f"Error getting analytics summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/preferences", response_model=SavePreferencesResponse)
+async def save_user_preferences(request: UserPreferencesSave):
+    """
+    Save user preferences for persistence across sessions
+    
+    Example request:
+    ```json
+    {
+        "user_id": "user_123",
+        "preferences": {
+            "dietary": ["vegetarian"],
+            "cuisines": ["Italian", "Japanese"],
+            "budget": "moderate",
+            "group_size": 2
+        }
+    }
+    ```
+    """
+    try:
+        result = await preferences_service.save_preferences(
+            user_id=request.user_id,
+            preferences=request.preferences.model_dump()
+        )
+        
+        return {
+            "success": True,
+            "message": "Preferences saved successfully",
+            "user_id": result["user_id"],
+            "preferences": UserPreferences(**result["preferences"])
+        }
+    
+    except Exception as e:
+        logger.error(f"Error saving preferences: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/preferences", response_model=UserPreferencesResponse)
+async def get_user_preferences(
+    user_id: str = Query(..., description="User ID")
+):
+    """
+    Get saved user preferences
+    
+    Example:
+    /local/preferences?user_id=user_123
+    """
+    try:
+        result = await preferences_service.get_preferences(user_id)
+        
+        if not result:
+            # Return empty preferences if not found
+            return {
+                "user_id": user_id,
+                "preferences": UserPreferences(),
+                "updated_at": datetime.utcnow()
+            }
+        
+        return {
+            "user_id": result["user_id"],
+            "preferences": UserPreferences(**result["preferences"]),
+            "updated_at": result["updated_at"]
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting preferences: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/preferences")
+async def delete_user_preferences(
+    user_id: str = Query(..., description="User ID")
+):
+    """
+    Delete user preferences
+    
+    Example:
+    DELETE /local/preferences?user_id=user_123
+    """
+    try:
+        deleted = await preferences_service.delete_preferences(user_id)
+        
+        if deleted:
+            return {
+                "success": True,
+                "message": "Preferences deleted successfully",
+                "user_id": user_id
+            }
+        else:
+            return {
+                "success": False,
+                "message": "No preferences found to delete",
+                "user_id": user_id
+            }
+    
+    except Exception as e:
+        logger.error(f"Error deleting preferences: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/health")

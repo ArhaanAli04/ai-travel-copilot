@@ -21,6 +21,25 @@ class UserPreferences(BaseModel):
     time_constraint: Optional[str] = Field(default=None, description="Available time (e.g., '30 minutes', '1-2 hours')")
     group_size: Optional[int] = Field(default=None, description="Number of people")
 
+class UserPreferencesSave(BaseModel):
+    """Request to save user preferences"""
+    user_id: str = Field(..., description="User ID")
+    preferences: UserPreferences = Field(..., description="User preferences to save")
+
+
+class UserPreferencesResponse(BaseModel):
+    """Response with user preferences"""
+    user_id: str
+    preferences: UserPreferences
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SavePreferencesResponse(BaseModel):
+    """Response after saving preferences"""
+    success: bool
+    message: str
+    user_id: str
+    preferences: UserPreferences
 
 class SuggestRequest(BaseModel):
     """Request for personalized recommendations"""
