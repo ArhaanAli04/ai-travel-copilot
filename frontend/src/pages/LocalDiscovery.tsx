@@ -201,16 +201,19 @@ const LocalDiscovery = () => {
           />
         </div>
       </div>
-
-      {/* Modals */}
+      {/* RIGHT SIDE: Preferences Sidebar */}
       {showPreferences && (
-        <PreferencesPanel
-          preferences={preferences}
-          onUpdatePreferences={addPreference}
-          onClose={() => setShowPreferences(false)}
-        />
+        <div className="w-96 h-screen flex-shrink-0 border-l border-gray-200 bg-white">
+          <PreferencesPanel
+            preferences={preferences}
+            onUpdatePreferences={addPreference}
+            onClose={() => setShowPreferences(false)}
+          />
+        </div>
       )}
-
+      
+      
+      {/* Modals */}
       {showTimeModal && (
         <TimePickerModal
           currentTime={contextChips.find((c) => c.type === 'time')?.value || 'afternoon'}

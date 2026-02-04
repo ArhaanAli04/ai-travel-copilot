@@ -73,8 +73,8 @@ export const PreferencesPanel: React.FC<PreferencesPanelProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-end">
-      <div className="bg-white w-full max-w-md h-full shadow-xl flex flex-col animate-slide-in-right">
+    <div className="h-full flex flex-col bg-white">
+      
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">Preferences</h2>
@@ -317,6 +317,6 @@ export const PreferencesPanel: React.FC<PreferencesPanelProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    
   );
 };

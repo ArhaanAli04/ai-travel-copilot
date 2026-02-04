@@ -1,7 +1,7 @@
 /**
  * Location Picker Modal - Allow user to select location on map
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, MapPin, Navigation } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
