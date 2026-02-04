@@ -36,12 +36,39 @@ export const useLocalDiscovery = () => {
   const [contextChips, setContextChips] = useState<ContextChip[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>({});
   const [userId] = useState(getUserId());
-
+  const [currentTime, setCurrentTime] = useState(getTimeOfDay());
   // Initialize: Load location and sessions
   useEffect(() => {
     initializeApp();
   }, []);
 
+  useEffect(() => {
+    const updateTime = () => {
+      const newTime = getTimeOfDay();
+      setCurrentTime(newTime);
+      
+      // Update time chip
+      setContextChips((prev) => {
+        const filtered = prev.filter((chip) => chip.type !== 'time');
+        return [
+          ...filtered,
+          {
+            id: 'time',
+            label: 'Time',
+            value: newTime,
+            type: 'time',
+            removable: false,
+            icon: '🕐',
+          },
+        ];
+      });
+    };
+
+  // Update time every minute
+  const interval = setInterval(updateTime, 60000); // 60 seconds
+
+  return () => clearInterval(interval);
+}, []);
   const initializeApp = async () => {
     setLoading(true);
     try {
@@ -92,23 +119,29 @@ export const useLocalDiscovery = () => {
 
   const updateLocationChip = (location: Location, cityName: string) => {
     setContextChips((prev) => {
-      const filtered = prev.filter((chip) => chip.type !== 'location');
+      // ✅ Keep only preference chips, remove ALL location and time chips
+      const preferenceChips = prev.filter(
+        (chip) => chip.type !== 'location' && chip.type !== 'time'
+      );
+      
       return [
-        ...filtered,
         {
           id: 'location',
           label: 'Location',
           value: cityName.charAt(0).toUpperCase() + cityName.slice(1),
           type: 'location',
           removable: false,
+          icon: '📍',
         },
         {
-          id: `time-${Date.now()}`,
+          id: 'time',
           label: 'Time',
           value: getTimeOfDay(),
           type: 'time',
           removable: false,
+          icon: '🕐',
         },
+        ...preferenceChips, // ✅ Add preference chips back at the end
       ];
     });
   };
@@ -416,6 +449,58 @@ const updatePreferenceChips = (prefs: UserPreferences) => {
     return [...nonPrefChips, ...chips];
   });
 };
+
+const setManualTime = (timeOfDay: string) => {
+  setContextChips((prev) => {
+    const filtered = prev.filter((chip) => chip.type !== 'time');
+    return [
+      ...filtered,
+      {
+        id: 'time',
+        label: 'Time',
+        value: timeOfDay,
+        type: 'time',
+        removable: false,
+        icon: '🕐',
+      },
+    ];
+  });
+  
+  console.log(`✅ Time manually set to: ${timeOfDay}`);
+};
+
+const setManualLocation = async (location: Location, cityName: string) => {
+  setUserLocation(location);
+  setCity(cityName);
+  
+  // Update location chip
+  setContextChips((prev) => {
+    const filtered = prev.filter((chip) => chip.type !== 'location');
+    return [
+      ...filtered,
+      {
+        id: 'location',
+        label: 'Location',
+        value: cityName.charAt(0).toUpperCase() + cityName.slice(1),
+        type: 'location',
+        removable: false,
+        icon: '📍',
+      },
+    ];
+  });
+  
+  // Update active session location if exists
+  if (activeSession) {
+    const updatedSession = {
+      ...activeSession,
+      location,
+      city: cityName,
+    };
+    setActiveSession(updatedSession);
+  }
+  
+  console.log(`✅ Location manually set to: ${cityName} (${location.lat}, ${location.lon})`);
+};
   return {
     // State
     sessions,
@@ -436,5 +521,7 @@ const updatePreferenceChips = (prefs: UserPreferences) => {
     removePreference,
     refreshSessions: loadSessions,
     handleFeedback,
+    setManualTime,
+    setManualLocation,
   };
 };

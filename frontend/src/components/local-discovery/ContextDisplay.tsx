@@ -11,56 +11,68 @@ import { Info } from 'lucide-react';
 interface ContextDisplayProps {
   chips: ContextChipType[];
   onRemoveChip?: (chipId: string) => void;
+  onEditChip?: (chipId: string) => void;
   showInfo?: boolean;
 }
 
 export const ContextDisplay: React.FC<ContextDisplayProps> = ({
   chips,
   onRemoveChip,
+  onEditChip,
   showInfo = false,
 }) => {
-  if (chips.length === 0 && !showInfo) {
+  if (chips.length === 0 ) {
     return null;
   }
 
-  const locationChips = chips.filter((chip) => chip.type === 'location' || chip.type === 'time');
-  const preferenceChips = chips.filter((chip) => chip.type === 'preference');
+  const contextChips = chips.filter(chip => 
+    chip.type === 'location' || chip.type === 'time'
+  );
+  const preferenceChips = chips.filter(chip => 
+    chip.type !== 'location' && chip.type !== 'time'
+  );
 
   return (
-    <div className="space-y-3">
-      {/* Info Banner */}
-      {showInfo && (
-        <div className="flex items-start gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-          <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-blue-900">
-            Your context helps me provide personalized recommendations. You can add preferences from the settings menu.
-          </p>
-        </div>
-      )}
-
-      {/* Location & Time Context */}
-      {locationChips.length > 0 && (
+    <div className="space-y-4">
+      {/* CONTEXT Section - Location & Time */}
+      {contextChips.length > 0 && (
         <div>
-          <h4 className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
-            Context
-          </h4>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">CONTEXT</h3>
           <div className="flex flex-wrap gap-2">
-            {locationChips.map((chip) => (
-              <ContextChip key={chip.id} chip={chip} onRemove={onRemoveChip} />
+            {contextChips.map((chip) => (
+              <ContextChip
+                key={chip.id}
+                chip={chip}
+                onRemove={onRemoveChip}
+                onEdit={onEditChip}
+              />
             ))}
           </div>
         </div>
       )}
 
-      {/* Preference Chips */}
+      {/* YOUR PREFERENCES Section - Everything else */}
       {preferenceChips.length > 0 && (
         <div>
-          <h4 className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
-            Your Preferences
-          </h4>
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="text-sm font-medium text-gray-700">YOUR PREFERENCES</h3>
+            {showInfo && (
+              <div className="group relative">
+                <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                <div className="absolute left-0 top-6 w-64 bg-gray-900 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  These preferences help personalize your recommendations. You can add more by clicking the settings icon.
+                </div>
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             {preferenceChips.map((chip) => (
-              <ContextChip key={chip.id} chip={chip} onRemove={onRemoveChip} />
+              <ContextChip
+                key={chip.id}
+                chip={chip}
+                onRemove={onRemoveChip}
+                onEdit={onEditChip}
+              />
             ))}
           </div>
         </div>

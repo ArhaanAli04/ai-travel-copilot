@@ -5,8 +5,10 @@ import { ChatInterface } from '../components/local-discovery/ChatInterface';
 import { PreferencesPanel } from '../components/local-discovery/PreferencesPanel';
 import { QuickActions } from '../components/local-discovery/QuickActions';
 import { ContextDisplay } from '../components/local-discovery/ContextDisplay';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Settings } from 'lucide-react';
 import { MapView } from '../components/local-discovery/MapView';
+import { TimePickerModal } from '../components/local-discovery/TimePickerModal';
+import { LocationPickerModal } from '../components/local-discovery/LocationPickerModal';
 
 const LocalDiscovery = () => {
   const {
@@ -16,6 +18,8 @@ const LocalDiscovery = () => {
     error,
     contextChips,
     preferences,
+    userLocation,
+    city,
     createNewSession,
     selectSession,
     deleteSession,
@@ -23,6 +27,8 @@ const LocalDiscovery = () => {
     addPreference,
     removePreference,
     handleFeedback: submitFeedback,
+    setManualLocation,
+    setManualTime,
   } = useLocalDiscovery();
 
   const [showPreferences, setShowPreferences] = useState(false);
@@ -30,6 +36,26 @@ const LocalDiscovery = () => {
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [showMap, setShowMap] = useState(false);
   const [mapPOIs, setMapPOIs] = useState<any[]>([]);
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
+  const handleEditChip = (chipId: string) => {
+    if (chipId === 'location') {
+      setShowLocationModal(true);
+    } else if (chipId === 'time') {
+      setShowTimeModal(true);
+    }
+  };
+
+  const handleTimeSelect = (time: string) => {
+    setManualTime(time);
+    setShowTimeModal(false);
+  };
+
+  const handleLocationSelect = (location: { lat: number; lon: number }, cityName: string) => {
+    setManualLocation(location, cityName);
+    setShowLocationModal(false);
+  };
 
   const handleSendMessage = (message: string) => {
     sendMessage(message, false);
@@ -43,14 +69,11 @@ const LocalDiscovery = () => {
   };
 
   const handleOpenMap = (pois: any[]) => {
-    console.log('🗺️ Opening map with', pois.length, 'POIs'); // DEBUG
     setMapPOIs(pois);
     setShowMap(true);
-    console.log('🗺️ showMap set to:', true); // DEBUG
   };
 
   const handleCloseMap = () => {
-    console.log('❌ Closing map'); // DEBUG
     setShowMap(false);
     setMapPOIs([]);
   };
@@ -65,7 +88,7 @@ const LocalDiscovery = () => {
       }, 2000);
     }
   };
-  
+
   const handleFeedback = async (
     poiId: string,
     feedbackType: 'thumbs_up' | 'thumbs_down'
@@ -73,13 +96,8 @@ const LocalDiscovery = () => {
     await submitFeedback(poiId, feedbackType);
   };
 
-  console.log('🔄 LocalDiscovery render - showMap:', showMap); // DEBUG
-
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* DEBUG INFO - REMOVE LATER */}
-      
-
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Mobile Toggle */}
       {!showMap && (
         <button
@@ -92,27 +110,23 @@ const LocalDiscovery = () => {
 
       {/* LEFT SIDE: Sidebar OR Map */}
       {showMap && activeSession ? (
-        <div className="w-2/5 h-screen flex-shrink-0 bg-red-100">
-          {/* RED background to debug visibility */}
-          <div className="h-full w-full bg-white">
-            <MapView
-              pois={mapPOIs}
-              userLocation={{
-                lat: activeSession.location.lat,
-                lon: activeSession.location.lon,
-              }}
-              onClose={handleCloseMap}
-              onPOIClick={handlePOIClickFromMap}
-            />
-          </div>
+        <div className="w-2/5 h-screen flex-shrink-0">
+          <MapView
+            pois={mapPOIs}
+            userLocation={{
+              lat: activeSession.location.lat,
+              lon: activeSession.location.lon,
+            }}
+            onClose={handleCloseMap}
+            onPOIClick={handlePOIClickFromMap}
+          />
         </div>
       ) : (
         <div
           className={`${
             showSidebar ? 'translate-x-0' : '-translate-x-full'
-          } fixed lg:relative lg:translate-x-0 inset-y-0 left-0 z-40 transition-transform duration-300 w-80 bg-blue-100`}
+          } fixed lg:relative lg:translate-x-0 inset-y-0 left-0 z-30 transition-transform duration-300 w-80`}
         >
-          {/* BLUE background to debug visibility */}
           <ChatSidebar
             sessions={sessions}
             activeSessionId={activeSession?.id || null}
@@ -131,37 +145,86 @@ const LocalDiscovery = () => {
           </div>
         )}
 
-        {activeSession && contextChips.length > 0 && (
-          <div className="px-6 py-4 bg-white border-b border-gray-200">
-            <ContextDisplay
-              chips={contextChips}
-              onRemoveChip={removePreference}
-              showInfo={activeSession.messages.length === 0}
-            />
+        {activeSession && (
+          <>
+            {/* Title bar with settings */}
+            <div className="px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">
+                    {activeSession.title}
+                  </h1>
+                  <p className="text-sm text-gray-500 capitalize">
+                    {activeSession.city} • {activeSession.messages.length} messages
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPreferences(true)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Preferences"
+                >
+                  <Settings className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+            </div>
+
+            {/* Context chips */}
+            <div className="px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
+              <ContextDisplay
+                chips={contextChips}
+                onRemoveChip={removePreference}
+                onEditChip={handleEditChip}
+                showInfo={activeSession.messages.length === 0}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Quick Actions */}
+        {activeSession && showQuickActions && activeSession.messages.length <= 1 && !showMap && (
+          <div className="flex-shrink-0">
+            <QuickActions onSelectAction={handleQuickAction} disabled={loading} />
           </div>
         )}
 
-        {activeSession && showQuickActions && activeSession.messages.length <= 1 && (
-          <QuickActions onSelectAction={handleQuickAction} disabled={loading} />
-        )}
-
-        <ChatInterface
-          session={activeSession}
-          loading={loading}
-          contextChips={contextChips}
-          onSendMessage={handleSendMessage}
-          onRemoveChip={removePreference}
-          onOpenPreferences={() => setShowPreferences(true)}
-          onFeedback={handleFeedback}
-          onOpenMap={handleOpenMap}
-        />
+        {/* Scrollable Chat Area */}
+        <div className="flex-1 overflow-hidden">
+          <ChatInterface
+            session={activeSession}
+            loading={loading}
+            contextChips={contextChips}
+            onSendMessage={handleSendMessage}
+            onRemoveChip={removePreference}
+            onOpenPreferences={() => setShowPreferences(true)}
+            onFeedback={handleFeedback}
+            onOpenMap={handleOpenMap}
+          />
+        </div>
       </div>
 
+      {/* Modals */}
       {showPreferences && (
         <PreferencesPanel
           preferences={preferences}
           onUpdatePreferences={addPreference}
           onClose={() => setShowPreferences(false)}
+        />
+      )}
+
+      {showTimeModal && (
+        <TimePickerModal
+          currentTime={contextChips.find((c) => c.type === 'time')?.value || 'afternoon'}
+          onSelectTime={handleTimeSelect}
+          onClose={() => setShowTimeModal(false)}
+        />
+      )}
+
+      {showLocationModal && activeSession && (
+        <LocationPickerModal
+          currentLocation={activeSession.location}
+          currentCity={city}
+          onSelectLocation={handleLocationSelect}
+          onClose={() => setShowLocationModal(false)}
         />
       )}
     </div>
