@@ -44,23 +44,39 @@ const getIcon = (type: string) => {
 export const ContextChip: React.FC<ContextChipProps> = ({ chip, onRemove, onEdit }) => {
   const Icon = getIcon(chip.type);
   
-  // ✅ Check if this chip can be edited (location or time)
+  // Check if this chip can be edited (location or time)
   const canEdit = (chip.type === 'location' || chip.type === 'time') && onEdit;
 
-  // ✅ Different color scheme for editable chips
+  // Different color scheme based on chip type
   const getChipStyles = () => {
+    if (chip.type === 'location') {
+      return 'bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/30';
+    }
+    if (chip.type === 'time') {
+      return 'bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/30';
+    }
     if (chip.removable) {
-      return 'bg-blue-50 text-blue-700 border border-blue-200';
+      return 'bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/30';
     }
-    if (canEdit) {
-      return 'bg-purple-50 text-purple-700 border border-purple-200'; // ✅ Purple for editable
+    return 'bg-white/5 text-[#9CA3AF] border border-[rgba(148,163,184,0.2)]';
+  };
+
+  const getHoverStyles = () => {
+    if (chip.type === 'location') {
+      return 'hover:bg-[#8B5CF6]/20';
     }
-    return 'bg-gray-100 text-gray-700 border border-gray-200';
+    if (chip.type === 'time') {
+      return 'hover:bg-[#8B5CF6]/20';
+    }
+    if (chip.removable) {
+      return 'hover:bg-[#38BDF8]/20';
+    }
+    return 'hover:bg-white/10';
   };
 
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${getChipStyles()}`}>
-      {/* ✅ CHANGED: Use emoji icon if available, otherwise use Lucide icon */}
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${getChipStyles()} transition-all`}>
+      {/* Use emoji icon if available, otherwise use Lucide icon */}
       {chip.icon ? (
         <span className="text-base">{chip.icon}</span>
       ) : (
@@ -68,24 +84,24 @@ export const ContextChip: React.FC<ContextChipProps> = ({ chip, onRemove, onEdit
       )}
       
       <span className="font-medium">{chip.label}:</span>
-      <span>{chip.value}</span>
+      <span className="font-normal">{chip.value}</span>
 
-      {/* ✅ Edit button for location and time chips */}
+      {/* Edit button for location and time chips */}
       {canEdit && (
         <button
           onClick={() => onEdit(chip.id)}
-          className="ml-1 hover:bg-purple-100 rounded-full p-0.5 transition-colors"
+          className={`ml-1 ${getHoverStyles()} rounded-full p-0.5 transition-colors`}
           aria-label={`Edit ${chip.label}`}
         >
           <Edit2 className="w-3 h-3" />
         </button>
       )}
 
-      {/* ✅ Remove button for removable chips (preferences) */}
+      {/* Remove button for removable chips (preferences) */}
       {chip.removable && onRemove && (
         <button
           onClick={() => onRemove(chip.id)}
-          className="ml-1 hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+          className={`ml-1 ${getHoverStyles()} rounded-full p-0.5 transition-colors`}
           aria-label={`Remove ${chip.label}`}
         >
           <X className="w-3 h-3" />

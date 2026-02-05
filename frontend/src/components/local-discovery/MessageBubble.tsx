@@ -6,7 +6,7 @@
 import React from 'react';
 import { type Message } from '../../types/local-discovery';
 import { POICard } from './POICard';
-import { User, Bot, MapPin } from 'lucide-react'; // ✅ MapPin already imported
+import { User, Bot, MapPin } from 'lucide-react';
 import { formatTime } from '../../utils/datetime';
 
 interface MessageBubbleProps {
@@ -27,7 +27,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       {/* Avatar */}
       <div
         className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-          isUser ? 'bg-blue-600' : 'bg-purple-600'
+          isUser 
+            ? 'bg-gradient-to-br from-[#38BDF8] to-[#3B82F6]' 
+            : 'bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED]'
         }`}
       >
         {isUser ? (
@@ -43,18 +45,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div
           className={`px-4 py-3 rounded-2xl ${
             isUser
-              ? 'bg-blue-600 text-white rounded-tr-sm'
-              : 'bg-gray-100 text-gray-900 rounded-tl-sm'
+              ? 'bg-gradient-to-r from-[#38BDF8] to-[#3B82F6] text-white rounded-tr-sm shadow-lg shadow-[#38BDF8]/20'
+              : 'bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)] text-white rounded-tl-sm'
           }`}
         >
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
 
-        {/* ✅ ADD THIS: View on Map button (for assistant messages with POIs) */}
+        {/* View on Map button (for assistant messages with POIs) */}
         {!isUser && message.pois && message.pois.length > 0 && onOpenMap && (
           <button
             onClick={() => onOpenMap(message.pois!)}
-            className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#8B5CF6] text-white text-sm font-medium rounded-lg hover:bg-[#7C3AED] transition-all shadow-lg hover:shadow-[#8B5CF6]/20"
           >
             <MapPin className="w-4 h-4" />
             View {message.pois.length} {message.pois.length === 1 ? 'place' : 'places'} on map
@@ -72,7 +74,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Timestamp */}
         <div
-          className={`mt-1 text-xs text-gray-500 ${
+          className={`mt-1 text-xs text-[#6B7280] ${
             isUser ? 'text-right' : 'text-left'
           }`}
         >

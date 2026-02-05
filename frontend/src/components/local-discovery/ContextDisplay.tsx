@@ -21,7 +21,7 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
   onEditChip,
   showInfo = false,
 }) => {
-  if (chips.length === 0 ) {
+  if (chips.length === 0) {
     return null;
   }
 
@@ -37,7 +37,9 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
       {/* CONTEXT Section - Location & Time */}
       {contextChips.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">CONTEXT</h3>
+          <h3 className="text-xs font-semibold tracking-wide uppercase text-[#9CA3AF] mb-2">
+            Context
+          </h3>
           <div className="flex flex-wrap gap-2">
             {contextChips.map((chip) => (
               <ContextChip
@@ -55,11 +57,13 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
       {preferenceChips.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-sm font-medium text-gray-700">YOUR PREFERENCES</h3>
+            <h3 className="text-xs font-semibold tracking-wide uppercase text-[#9CA3AF]">
+              Your Preferences
+            </h3>
             {showInfo && (
               <div className="group relative">
-                <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                <div className="absolute left-0 top-6 w-64 bg-gray-900 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                <Info className="w-4 h-4 text-[#6B7280] cursor-help hover:text-[#9CA3AF] transition-colors" />
+                <div className="absolute left-0 top-6 w-64 bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl">
                   These preferences help personalize your recommendations. You can add more by clicking the settings icon.
                 </div>
               </div>

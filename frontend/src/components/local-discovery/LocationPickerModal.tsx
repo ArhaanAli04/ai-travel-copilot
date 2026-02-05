@@ -17,7 +17,7 @@ interface LocationPickerModalProps {
 // Custom marker icon
 const createMarkerIcon = () => {
   return L.divIcon({
-    html: '<div style="background: #2563eb; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+    html: '<div style="background: #8B5CF6; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(236,72,153,0.5);"></div>',
     className: '',
     iconSize: [30, 30],
     iconAnchor: [15, 15],
@@ -95,22 +95,26 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
-  style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-  onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
-      onClick={(e) => e.stopPropagation()}>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+      onClick={onClose}
+    >
+      <div 
+        className="bg-[#0a0e14] rounded-xl shadow-2xl border border-[rgba(148,163,184,0.2)] w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(148,163,184,0.2)]">
           <div className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Select Location</h2>
+            <MapPin className="w-5 h-5 text-[#8B5CF6]" />
+            <h2 className="text-lg font-semibold text-white">Select Location</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1 hover:bg-white/5 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-[#9CA3AF]" />
           </button>
         </div>
 
@@ -136,24 +140,24 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
           {/* Use Current Location Button */}
           <button
             onClick={handleUseCurrentLocation}
-            className="absolute top-4 right-4 z-[1000] bg-white px-4 py-2 rounded-lg shadow-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+            className="absolute top-4 right-4 z-[1000] bg-[#1F2937] border border-[rgba(148,163,184,0.2)] px-4 py-2 rounded-lg shadow-lg hover:bg-[#1F2937]/80 transition-all flex items-center gap-2"
           >
-            <Navigation className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-medium">Use My Location</span>
+            <Navigation className="w-4 h-4 text-[#8B5CF6]" />
+            <span className="text-sm font-medium text-white">Use My Location</span>
           </button>
 
           {/* Info Box */}
-          <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-white rounded-lg shadow-lg p-4">
-            <p className="text-sm text-gray-600 mb-2">
+          <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-[#1F2937] border border-[rgba(148,163,184,0.2)] rounded-lg shadow-lg p-4">
+            <p className="text-sm text-[#9CA3AF] mb-2">
               Click anywhere on the map to select a location
             </p>
             <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-blue-600" />
+              <MapPin className="w-4 h-4 text-[#8B5CF6]" />
               <div>
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-sm font-medium text-white">
                   {isLoadingCity ? 'Loading...' : cityName}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-[#6B7280]">
                   {selectedLocation.lat.toFixed(4)}, {selectedLocation.lon.toFixed(4)}
                 </div>
               </div>
@@ -162,17 +166,17 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+        <div className="flex gap-3 px-6 py-4 border-t border-[rgba(148,163,184,0.2)] bg-[#0a0e14]/50">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+            className="flex-1 px-4 py-2 bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white rounded-lg hover:bg-[#1F2937]/70 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={isLoadingCity}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2 bg-[#8B5CF6] text-white rounded-lg hover:bg-[#7C3AED] transition-colors shadow-lg hover:shadow-[#8B5CF6]/20"
           >
             Confirm Location
           </button>

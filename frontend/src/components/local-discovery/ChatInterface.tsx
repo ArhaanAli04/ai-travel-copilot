@@ -32,11 +32,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   if (!session) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="text-center text-gray-500">
-          <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg mb-2">No chat selected</p>
-          <p className="text-sm">Create a new chat to get started</p>
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-[#38BDF8]/10 flex items-center justify-center mx-auto mb-4">
+            <MapPin className="w-8 h-8 text-[#38BDF8]" />
+          </div>
+          <p className="text-lg font-semibold text-white mb-2">No chat selected</p>
+          <p className="text-sm text-[#9CA3AF]">Create a new chat to get started</p>
         </div>
       </div>
     );
@@ -55,7 +57,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
 
       {/* ✅ Input - Fixed at bottom */}
-      <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+      <div className="flex-shrink-0 border-t border-[rgba(148,163,184,0.2)] bg-[#0a0e14]/50 backdrop-blur-xl">
         <ChatInput
           onSend={onSendMessage}
           loading={loading}

@@ -98,12 +98,12 @@ const LocalDiscovery = () => {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-gradient-to-b from-[#05070a] to-[#0b1120]">
     {/* Navigation Bar */}
     <Navigation />
     
     {/* Main Content */}
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden ml-20">
       {/* Mobile Toggle */}
       {!showMap && (
         <button
@@ -140,38 +140,38 @@ const LocalDiscovery = () => {
       )}
 
       {/* RIGHT SIDE: Chat */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden ml-20">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden ">
         {error && (
-          <div className="px-6 py-3 bg-red-50 border-b border-red-200">
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="px-6 py-3 bg-[#EF4444]/10 border-b border-[#EF4444]/30">
+            <p className="text-sm text-[#EF4444]">{error}</p>
           </div>
         )}
 
         {activeSession && (
           <>
             {/* Title bar with settings */}
-            <div className="px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
+            <div className="px-6 py-4 bg-[#0a0e14]/50 backdrop-blur-xl border-b border-[rgba(148,163,184,0.2)] flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-xl font-semibold text-gray-900">
+                  <h1 className="text-xl font-semibold text-white">
                     {activeSession.title}
                   </h1>
-                  <p className="text-sm text-gray-500 capitalize">
+                  <p className="text-sm text-[#9CA3AF] capitalize">
                     {activeSession.city} • {activeSession.messages.length} messages
                   </p>
                 </div>
                 <button
                   onClick={() => setShowPreferences(true)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-white/5 rounded-lg transition-colors"
                   aria-label="Preferences"
                 >
-                  <Settings className="w-5 h-5 text-gray-600" />
+                  <Settings className="w-5 h-5 text-[#9CA3AF]" />
                 </button>
               </div>
             </div>
 
             {/* Context chips */}
-            <div className="px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
+            <div className="px-6 py-4 bg-[#0a0e14]/50 backdrop-blur-xl border-b border-[rgba(148,163,184,0.2)] flex-shrink-0">
               <ContextDisplay
                 chips={contextChips}
                 onRemoveChip={removePreference}
@@ -233,7 +233,7 @@ const LocalDiscovery = () => {
         />
       )}
     </div>
-    </>
+    </div>
   );
 };
 
