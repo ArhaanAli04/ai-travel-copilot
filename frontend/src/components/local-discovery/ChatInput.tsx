@@ -62,7 +62,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         placeholder={placeholder}
         disabled={disabled || loading}
         rows={1}
-        className="flex-1 resize-none rounded-lg bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white placeholder:text-[#6B7280] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#38BDF8] focus:border-transparent disabled:bg-[#1F2937]/50 disabled:text-[#6B7280] max-h-32 overflow-y-auto"
+        className="flex-1 resize-none rounded-lg bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white placeholder:text-[#6B7280] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#38BDF8] focus:border-transparent disabled:bg-[#1F2937]/50 disabled:text-[#6B7280] max-h-32 overflow-y-auto custom-scrollbar"
       />
       
       <button

@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import type {
   ChatSession,
   Message,
@@ -27,6 +28,8 @@ import { getTimeOfDay, getGreeting } from '../utils/datetime';
 import { generateMockResponse } from '../utils/mock-data';
 
 export const useLocalDiscovery = () => {
+  const navigate = useNavigate(); //  ADD
+  const { sessionId } = useParams(); 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,6 +44,51 @@ export const useLocalDiscovery = () => {
   useEffect(() => {
     initializeApp();
   }, []);
+
+  useEffect(() => {
+    if (sessions.length > 0) {
+      if (sessionId) {
+        // Try to find and load the session from URL
+        const session = sessions.find(s => s.id === sessionId);
+        if (session && session.id !== activeSession?.id) {
+          setActiveSession(session);
+        } else if (!session) {
+          // Session not found in list, try to fetch it
+          loadSessionFromId(sessionId);
+        }
+      } else if (!activeSession && sessions.length > 0) {
+        // No sessionId in URL, use most recent
+        const latest = sessions[0];
+        setActiveSession(latest);
+        navigate(`/local-discovery/${latest.id}`, { replace: true });
+      }
+    }
+  }, [sessions, sessionId]);
+
+  const loadSessionFromId = async (sessionId: string) => {
+    try {
+      const session = await getChatSession(sessionId);
+      if (session) {
+        setActiveSession(session);
+        // Add to sessions list if not present
+        setSessions(prev => {
+          if (!prev.find(s => s.id === sessionId)) {
+            return [session, ...prev];
+          }
+          return prev;
+        });
+      } else {
+        // Session not found, redirect to latest
+        const latest = sessions[0];
+        if (latest) {
+          setActiveSession(latest);
+          navigate(`/local-discovery/${latest.id}`, { replace: true });
+        }
+      }
+    } catch (err) {
+      console.error('Error loading session:', err);
+    }
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -69,6 +117,7 @@ export const useLocalDiscovery = () => {
 
   return () => clearInterval(interval);
 }, []);
+
   const initializeApp = async () => {
     setLoading(true);
     try {
@@ -108,10 +157,6 @@ export const useLocalDiscovery = () => {
       const fetchedSessions = await getChatSessions(userId);
       setSessions(fetchedSessions);
 
-      // Set most recent session as active if none selected
-      if (!activeSession && fetchedSessions.length > 0) {
-        setActiveSession(fetchedSessions[0]);
-      }
     } catch (err) {
       console.error('Error loading sessions:', err);
     }
@@ -178,6 +223,7 @@ What are you looking for today?`,
       if (updatedSession) {
         setSessions((prev) => [updatedSession, ...prev]);
         setActiveSession(updatedSession);
+        navigate(`/local-discovery/${updatedSession.id}`, { replace: true });
       }
     } catch (err) {
       console.error('Error creating session:', err);
@@ -191,11 +237,13 @@ What are you looking for today?`,
     const session = sessions.find((s) => s.id === sessionId);
     if (session) {
       setActiveSession(session);
+      navigate(`/local-discovery/${sessionId}`);
     } else {
       // Fetch from backend if not in local state
       const fetchedSession = await getChatSession(sessionId);
       if (fetchedSession) {
         setActiveSession(fetchedSession);
+        navigate(`/local-discovery/${sessionId}`);
       }
     }
   };
@@ -206,7 +254,14 @@ What are you looking for today?`,
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
 
       if (activeSession?.id === sessionId) {
-        setActiveSession(sessions[0] || null);
+        const remainingSessions = sessions.filter((s) => s.id !== sessionId);
+        if (remainingSessions.length > 0) {
+          setActiveSession(remainingSessions[0]);
+          navigate(`/local-discovery/${remainingSessions[0].id}`, { replace: true });
+        } else {
+          setActiveSession(null);
+          navigate('/local-discovery', { replace: true });
+        }
       }
     } catch (err) {
       console.error('Error deleting session:', err);

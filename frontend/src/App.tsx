@@ -22,15 +22,6 @@ const Home = () => (
 
 
 
-const Local = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="text-center px-8">
-      <h2 className="text-4xl font-bold text-white mb-4">📍 Local Discovery</h2>
-      <p className="text-lg text-[#9CA3AF] mb-2">Find hyper-local experiences and hidden gems</p>
-      <p className="text-[#6B7280]">Coming soon in Day 16...</p>
-    </div>
-  </div>
-);
 
 const Safety = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -49,6 +40,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/planner" element={<Planner />} />
         <Route path="/disruption" element={<DisruptionPage />} />
+        <Route path="/local-discovery/:sessionId?" element={<LocalDiscovery />} />
         <Route path="/local" element={<LocalDiscovery />} />
         <Route path="/safety" element={<Safety />} />
       </Routes>
