@@ -102,7 +102,7 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
           )}
 
           {/* YOUR PREFERENCES Section - Everything else */}
-          {preferenceChips.length > 0 && (
+          
             <div>
               <div className="flex items-center justify-between mb-2">
                 {/* Left side: Title + Info */}
@@ -146,7 +146,7 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
                 ))}
               </div>
             </div>
-          )}
+          
         </div>
       )}
     </div>
