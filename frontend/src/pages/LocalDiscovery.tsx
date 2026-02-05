@@ -9,6 +9,7 @@ import { Menu, X, Settings } from 'lucide-react';
 import { MapView } from '../components/local-discovery/MapView';
 import { TimePickerModal } from '../components/local-discovery/TimePickerModal';
 import { LocationPickerModal } from '../components/local-discovery/LocationPickerModal';
+import { Navigation } from '../components/Navigation';
 
 const LocalDiscovery = () => {
   const {
@@ -97,6 +98,11 @@ const LocalDiscovery = () => {
   };
 
   return (
+    <>
+    {/* Navigation Bar */}
+    <Navigation />
+    
+    {/* Main Content */}
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Mobile Toggle */}
       {!showMap && (
@@ -110,7 +116,7 @@ const LocalDiscovery = () => {
 
       {/* LEFT SIDE: Sidebar OR Map */}
       {showMap && activeSession ? (
-        <div className="w-2/5 h-screen flex-shrink-0">
+        <div className="w-2/5 h-[calc(100vh-64px)] flex-shrink-0 ml-20">
           <MapView
             pois={mapPOIs}
             userLocation={{
@@ -122,11 +128,7 @@ const LocalDiscovery = () => {
           />
         </div>
       ) : (
-        <div
-          className={`${
-            showSidebar ? 'translate-x-0' : '-translate-x-full'
-          } fixed lg:relative lg:translate-x-0 inset-y-0 left-0 z-30 transition-transform duration-300 w-80`}
-        >
+        
           <ChatSidebar
             sessions={sessions}
             activeSessionId={activeSession?.id || null}
@@ -134,11 +136,11 @@ const LocalDiscovery = () => {
             onNewSession={createNewSession}
             onDeleteSession={deleteSession}
           />
-        </div>
+        
       )}
 
       {/* RIGHT SIDE: Chat */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden ml-20">
         {error && (
           <div className="px-6 py-3 bg-red-50 border-b border-red-200">
             <p className="text-sm text-red-800">{error}</p>
@@ -231,6 +233,7 @@ const LocalDiscovery = () => {
         />
       )}
     </div>
+    </>
   );
 };
 
