@@ -149,26 +149,7 @@ const LocalDiscovery = () => {
 
         {activeSession && (
           <>
-            {/* Title bar with settings */}
-            <div className="px-6 py-4 bg-[#0a0e14]/50 backdrop-blur-xl border-b border-[rgba(148,163,184,0.2)] flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-xl font-semibold text-white">
-                    {activeSession.title}
-                  </h1>
-                  <p className="text-sm text-[#9CA3AF] capitalize">
-                    {activeSession.city} • {activeSession.messages.length} messages
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowPreferences(true)}
-                  className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                  aria-label="Preferences"
-                >
-                  <Settings className="w-5 h-5 text-[#9CA3AF]" />
-                </button>
-              </div>
-            </div>
+            
 
             {/* Context chips */}
             <div className="px-6 py-4 bg-[#0a0e14]/50 backdrop-blur-xl border-b border-[rgba(148,163,184,0.2)] flex-shrink-0">
@@ -176,7 +157,8 @@ const LocalDiscovery = () => {
                 chips={contextChips}
                 onRemoveChip={removePreference}
                 onEditChip={handleEditChip}
-                showInfo={activeSession.messages.length === 0}
+                onOpenPreferences={() => setShowPreferences(true)}
+                showInfo={true}
               />
             </div>
           </>
