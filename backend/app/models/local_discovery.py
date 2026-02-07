@@ -3,7 +3,7 @@ Pydantic models for Local Discovery API
 """
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime,timezone
 from enum import Enum
 
 class UserLocation(BaseModel):
@@ -31,7 +31,7 @@ class UserPreferencesResponse(BaseModel):
     """Response with user preferences"""
     user_id: str
     preferences: UserPreferences
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SavePreferencesResponse(BaseModel):
@@ -107,7 +107,7 @@ class POIFeedbackSubmit(BaseModel):
     user_id: str = Field(..., description="User ID (can be session ID for anonymous)")
     feedback_type: FeedbackType = Field(..., description="Type of feedback")
     rating: Optional[int] = Field(None, description="Rating (1-5) if feedback_type is 'rating'", ge=1, le=5)
-    visited_at: Optional[datetime] = Field(default_factory=datetime.utcnow, description="When user visited")
+    visited_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc), description="When user visited")
     comment: Optional[str] = Field(None, description="Optional comment", max_length=500)
     tags: Optional[List[str]] = Field(default=None, description="Experience tags (e.g., ['romantic', 'quiet', 'good_service'])")
 
@@ -155,7 +155,7 @@ class AnalyticsQuery(BaseModel):
     user_location: UserLocation
     preferences: Optional[Dict] = None
     results_count: int
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     response_time_ms: float
     user_id: Optional[str] = None
 

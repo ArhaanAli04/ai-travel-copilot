@@ -2,7 +2,7 @@
 MongoDB models for Local Discovery feature (POIs, Reddit posts, Blog posts)
 These are Pydantic models, NOT SQLAlchemy (MongoDB doesn't need migrations)
 """
-from datetime import datetime
+from datetime import datetime,timezone
 from typing import List, Optional, Dict, Any, Annotated
 from pydantic import BaseModel, Field, BeforeValidator
 from bson import ObjectId
@@ -56,8 +56,8 @@ class POI(BaseModel):
     website: Optional[str] = None
     description: Optional[str] = None
     source: str = "osm"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     user_feedback_count: int = 0
     average_rating: float = 0.0
 
@@ -92,7 +92,7 @@ class RedditPost(BaseModel):
     created_at: datetime
     city: str
     keywords: List[str] = Field(default_factory=list)
-    scraped_at: datetime = Field(default_factory=datetime.utcnow)
+    scraped_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = {
         "populate_by_name": True,
@@ -112,7 +112,7 @@ class BlogPost(BaseModel):
     blog_name: str
     city: str
     tags: List[str] = Field(default_factory=list)
-    ingested_at: datetime = Field(default_factory=datetime.utcnow)
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = {
         "populate_by_name": True,
@@ -141,7 +141,7 @@ class UserFeedback(BaseModel):
     rating: int = Field(ge=1, le=5)
     comment: Optional[str] = None
     visited_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = {
         "populate_by_name": True,
@@ -182,7 +182,7 @@ class FoursquareTip(BaseModel):
     city: str
     matched_by: str = "name_and_distance"  # How OSM→Foursquare match was made
     match_confidence: float = 0.0  # 0-1 confidence score
-    enriched_at: datetime = Field(default_factory=datetime.utcnow)
+    enriched_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = {
         "populate_by_name": True,
