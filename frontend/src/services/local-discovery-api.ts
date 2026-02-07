@@ -222,6 +222,47 @@ export const updateSessionTitle = async (
     throw error;
   }
 };
+
+/**
+ * Update session context (manual location/time overrides)
+ */
+export const updateSessionContext = async (
+  sessionId: string,
+  manualLocation?: { lat: number; lon: number } | null,
+  manualCity?: string | null,
+  manualTime?: string | null
+): Promise<void> => {
+  try {
+    const body: any = {};
+    
+    if (manualLocation !== undefined) {
+      body.manual_location = manualLocation;
+    }
+    if (manualCity !== undefined) {
+      body.manual_city = manualCity;
+    }
+    if (manualTime !== undefined) {
+      body.manual_time = manualTime;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update session context');
+    }
+    
+    console.log('✅ Session context updated');
+  } catch (error) {
+    console.error('Error updating session context:', error);
+    throw error;
+  }
+};
 /**
  * Add message to session
  */
@@ -257,13 +298,30 @@ export const addMessageToSession = async (
 };
 
 const parseSession = (session: any): ChatSession => {
+  // Parse dates properly - handle both ISO strings and Date objects
+  const parseDate = (dateValue: any): Date => {
+    if (!dateValue) return new Date();
+    if (dateValue instanceof Date) return dateValue;
+    
+    // If it's a string, parse it
+    const parsed = new Date(dateValue);
+    
+    // Check if valid date
+    if (isNaN(parsed.getTime())) {
+      console.warn('Invalid date:', dateValue);
+      return new Date();
+    }
+    
+    return parsed;
+  };
+
   return {
     ...session,
-    created_at: new Date(session.created_at),
-    updated_at: new Date(session.updated_at),
+    created_at: parseDate(session.created_at),
+    updated_at: parseDate(session.updated_at),
     messages: session.messages.map((msg: any) => ({
       ...msg,
-      timestamp: new Date(msg.timestamp),
+      timestamp: parseDate(msg.timestamp),
     })),
   };
 };

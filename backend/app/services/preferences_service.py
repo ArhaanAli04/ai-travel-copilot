@@ -3,7 +3,7 @@ Service for managing user preferences persistence
 """
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime,timezone
 from app.core.mongo import get_database
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class PreferencesService:
             document = {
                 "user_id": user_id,
                 "preferences": preferences,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
             
             # Upsert (update if exists, insert if not)

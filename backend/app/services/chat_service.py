@@ -3,7 +3,7 @@ Service for chat session management
 """
 import logging
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime,timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import certifi
@@ -54,8 +54,12 @@ class ChatService:
                 "city": city,
                 "location": location,
                 "messages": [],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+                # ✅ NEW: Initialize manual overrides as None (use defaults)
+                "manual_location": None,
+                "manual_city": None,
+                "manual_time": None
             }
             
             result = await self.sessions_collection.insert_one(session_doc)
@@ -71,7 +75,10 @@ class ChatService:
                 location=location,
                 messages=[],
                 created_at=session_doc["created_at"],
-                updated_at=session_doc["updated_at"]
+                updated_at=session_doc["updated_at"],
+                manual_location=None,
+                manual_city=None,
+                manual_time=None
             )
         
         except Exception as e:
@@ -121,7 +128,9 @@ class ChatService:
             ).sort("updated_at", -1).limit(limit)
             
             sessions = await cursor.to_list(length=limit)
-            
+            # ✅ DEBUG: Log timestamps
+            for doc in sessions[:3]:  # First 3 sessions
+                logger.info(f"📊 Session {doc.get('title')}: updated_at = {doc.get('updated_at')}")
             return [self._doc_to_session(doc) for doc in sessions]
         
         except Exception as e:
@@ -145,7 +154,7 @@ class ChatService:
                 {
                     "$set": {
                         "title": title,
-                        "updated_at": datetime.utcnow()
+                        "updated_at": datetime.now(timezone.utc)
                     }
                 }
             )
@@ -156,6 +165,49 @@ class ChatService:
             logger.error(f"❌ Error updating session title: {e}")
             return False
     
+    # ✅ NEW: Update manual overrides
+    async def update_session_context(
+        self,
+        session_id: str,
+        manual_location: Optional[Dict[str, float]] = None,
+        manual_city: Optional[str] = None,
+        manual_time: Optional[str] = None
+    ) -> bool:
+        """
+        Update session's manual location/time overrides
+        
+        Args:
+            session_id: Session ID
+            manual_location: Manual location override (or None to clear)
+            manual_city: Manual city override (or None to clear)
+            manual_time: Manual time override (or None to clear)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            update_fields = {"updated_at": datetime.now(timezone.utc)}
+            
+            # Only update fields that are explicitly provided
+            if manual_location is not None:
+                update_fields["manual_location"] = manual_location
+            if manual_city is not None:
+                update_fields["manual_city"] = manual_city
+            if manual_time is not None:
+                update_fields["manual_time"] = manual_time
+            
+            result = await self.sessions_collection.update_one(
+                {"_id": ObjectId(session_id)},
+                {"$set": update_fields}
+            )
+            
+            logger.info(f"✅ Updated context for session {session_id}")
+            return result.modified_count > 0
+        
+        except Exception as e:
+            logger.error(f"❌ Error updating session context: {e}")
+            return False
+
     async def add_message(
         self,
         session_id: str,
@@ -181,24 +233,35 @@ class ChatService:
                 "location": message.location.dict() if message.location else None,
                 "preferences": message.preferences.dict() if message.preferences else None
             }
+            # ✅ Get current time
+            now = datetime.now(timezone.utc)
             
+            # Check if we need to update title (for first user message)
+            update_fields = {"updated_at": now}
+            if message.role == "user":
+                session = await self.get_session(session_id)
+                if session and session.title == "New Chat":
+                    # Update title in same query (optimize to single DB call)
+                    update_fields["title"] = message.content[:50]
+
+            # ✅ LOG: Show what we're updating
+            logger.info(f"🕐 Updating session {session_id} timestamp to: {now}")
+
             result = await self.sessions_collection.update_one(
                 {"_id": ObjectId(session_id)},
                 {
                     "$push": {"messages": message_doc},
-                    "$set": {"updated_at": datetime.utcnow()}
+                    "$set": update_fields
                 }
             )
             
-            # Auto-update title from first user message
-            if message.role == "user":
-                session = await self.get_session(session_id)
-                if session and session.title == "New Chat":
-                    await self.update_session_title(
-                        session_id,
-                        message.content[:50]  # First 50 chars
-                    )
+             
+            logger.info(f"✅ Added message to session {session_id}, modified_count: {result.modified_count}")
             
+            # ✅ VERIFY: Check if update worked
+            if result.modified_count > 0:
+                updated_session = await self.sessions_collection.find_one({"_id": ObjectId(session_id)})
+                logger.info(f"✅ Verified updated_at: {updated_session.get('updated_at')}")
             return result.modified_count > 0
         
         except Exception as e:
@@ -228,17 +291,37 @@ class ChatService:
     
     def _doc_to_session(self, doc: Dict) -> ChatSession:
         """Convert MongoDB document to ChatSession object"""
+    
+        # Helper function to ensure timezone-aware datetime
+        def ensure_timezone_aware(dt):
+            """Convert naive datetime to timezone-aware UTC"""
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                # Naive datetime - assume it's UTC and add timezone
+                return dt.replace(tzinfo=timezone.utc)
+            return dt
+        
+        # Convert message timestamps to timezone-aware
+        messages = []
+        for msg in doc.get("messages", []):
+            msg_copy = msg.copy()
+            if "timestamp" in msg_copy and msg_copy["timestamp"]:
+                msg_copy["timestamp"] = ensure_timezone_aware(msg_copy["timestamp"])
+            messages.append(ChatMessage(**msg_copy))
+        
         return ChatSession(
             id=str(doc["_id"]),
             user_id=doc["user_id"],
             title=doc["title"],
             city=doc["city"],
             location=doc["location"],
-            messages=[
-                ChatMessage(**msg) for msg in doc.get("messages", [])
-            ],
-            created_at=doc["created_at"],
-            updated_at=doc["updated_at"]
+            messages=messages,
+            created_at=ensure_timezone_aware(doc["created_at"]),
+            updated_at=ensure_timezone_aware(doc["updated_at"]),
+            manual_location=doc.get("manual_location"),
+            manual_city=doc.get("manual_city"),
+            manual_time=doc.get("manual_time")
         )
 
 

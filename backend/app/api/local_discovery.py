@@ -10,7 +10,7 @@ from app.services.local_discovery_service import local_discovery_service
 from app.utils.geo_utils import get_city_coordinates
 from app.models.local_discovery import SuggestRequest, SuggestResponse, POIFeedbackResponse, POIFeedbackSubmit, TrendingPOI, TrendingResponse, AnalyticsStats, UserPreferencesSave,UserPreferencesResponse,SavePreferencesResponse, UserPreferences
 import time
-from datetime import datetime
+from datetime import datetime,timezone
 from app.services.feedback_service import feedback_service
 from app.services.analytics_service import analytics_service
 from app.services.preferences_service import preferences_service
@@ -471,7 +471,7 @@ async def get_user_preferences(
             return {
                 "user_id": user_id,
                 "preferences": UserPreferences(),
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
         
         return {

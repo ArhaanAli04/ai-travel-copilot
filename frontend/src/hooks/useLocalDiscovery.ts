@@ -22,6 +22,7 @@ import {
   submitFeedback,
   saveUserPreferences,
   getUserPreferences,
+  updateSessionContext,
 } from '../services/local-discovery-api';
 import { getCurrentLocation, getMockLocation } from '../utils/geolocation';
 import { getTimeOfDay, getGreeting } from '../utils/datetime';
@@ -52,6 +53,8 @@ export const useLocalDiscovery = () => {
         const session = sessions.find(s => s.id === sessionId);
         if (session && session.id !== activeSession?.id) {
           setActiveSession(session);
+          // ✅ NEW: Apply session context
+          applySessionContext(session);
         } else if (!session) {
           // Session not found in list, try to fetch it
           loadSessionFromId(sessionId);
@@ -61,15 +64,72 @@ export const useLocalDiscovery = () => {
         const latest = sessions[0];
         setActiveSession(latest);
         navigate(`/local-discovery/${latest.id}`, { replace: true });
+
+        // ✅ NEW: Apply session context
+        applySessionContext(latest);
       }
     }
   }, [sessions, sessionId]);
 
+  const applySessionContext = async (session: ChatSession) => {
+  // Apply manual overrides if they exist
+  if (session.manual_location && session.manual_city) {
+    setUserLocation(session.manual_location);
+    setCity(session.manual_city);
+    updateLocationChip(session.manual_location, session.manual_city);
+    console.log(`✅ Applied manual location: ${session.manual_city}`);
+  } else {
+    // No manual override, use session's original location
+    setUserLocation(session.location);
+    setCity(session.city);
+    updateLocationChip(session.location, session.city);
+    console.log(`✅ Applied session location: ${session.city}`);
+  }
+  
+  if (session.manual_time) {
+    setContextChips((prev) => {
+      const filtered = prev.filter((chip) => chip.type !== 'time');
+      return [
+        ...filtered,
+        {
+          id: 'time',
+          label: 'Time',
+          value: session.manual_time!,
+          type: 'time',
+          removable: false,
+          icon: '🕐',
+        },
+      ];
+    });
+    console.log(`✅ Applied manual time: ${session.manual_time}`);
+  } else {
+    // No manual override, use current time
+    const currentTime = getTimeOfDay();
+    setContextChips((prev) => {
+      const filtered = prev.filter((chip) => chip.type !== 'time');
+      return [
+        ...filtered,
+        {
+          id: 'time',
+          label: 'Time',
+          value: currentTime,
+          type: 'time',
+          removable: false,
+          icon: '🕐',
+        },
+      ];
+    });
+    console.log(`✅ Applied current time: ${currentTime}`);
+  }
+};
   const loadSessionFromId = async (sessionId: string) => {
     try {
       const session = await getChatSession(sessionId);
       if (session) {
         setActiveSession(session);
+
+        // ✅ CHANGED: Use helper function
+        applySessionContext(session);
         // Add to sessions list if not present
         setSessions(prev => {
           if (!prev.find(s => s.id === sessionId)) {
@@ -83,6 +143,7 @@ export const useLocalDiscovery = () => {
         if (latest) {
           setActiveSession(latest);
           navigate(`/local-discovery/${latest.id}`, { replace: true });
+          applySessionContext(latest);
         }
       }
     } catch (err) {
@@ -122,7 +183,7 @@ export const useLocalDiscovery = () => {
     setLoading(true);
     try {
       // Get user location
-      await loadUserLocation();
+      //await loadUserLocation();
 
       //load saved preferences
       await loadUserPreferences();
@@ -192,20 +253,35 @@ export const useLocalDiscovery = () => {
   };
 
   const createNewSession = async () => {
-    if (!userLocation) {
-      setError('Location not available');
-      return;
-    }
-
-    setLoading(true);
+  setLoading(true);
+  try {
+    // ✅ NEW: Get fresh current location for new session
+    let freshLocation: Location;
+    let freshCity: string;
+    
     try {
-      const newSession = await createChatSession(userId, city, userLocation);
+      const result = await getCurrentLocation();
+      freshLocation = result.location;
+      freshCity = result.city;
+      console.log(`✅ Got fresh location for new session: ${freshCity}`);
+    } catch (err) {
+      console.warn('Using mock location for new session:', err);
+      const mock = getMockLocation('mumbai');
+      freshLocation = mock.location;
+      freshCity = mock.city;
+    }
+    
+    // Create session with fresh location
+    const newSession = await createChatSession(userId, freshCity, freshLocation);
 
-      // Add welcome message
-      const welcomeMessage: Message = {
-        id: `${newSession.id}_0`,
-        role: 'assistant',
-        content: `${getGreeting()}! 👋 I'm your local discovery assistant. I can help you find amazing places around ${city}.
+    // ✅ NEW: Get fresh current time
+    const freshTime = getTimeOfDay();
+
+    // Add welcome message
+    const welcomeMessage: Message = {
+      id: `${newSession.id}_0`,
+      role: 'assistant',
+      content: `${getGreeting()}! 👋 I'm your local discovery assistant. I can help you find amazing places around ${freshCity}.
 
 Try asking me things like:
 • "Find me a cozy cafe for working"
@@ -213,40 +289,68 @@ Try asking me things like:
 • "Where can I get authentic street food?"
 
 What are you looking for today?`,
-        timestamp: new Date(),
-      };
+      timestamp: new Date(),
+    };
 
-      await addMessageToSession(newSession.id, welcomeMessage);
+    await addMessageToSession(newSession.id, welcomeMessage);
 
-      // Reload session with message
-      const updatedSession = await getChatSession(newSession.id);
-      if (updatedSession) {
-        setSessions((prev) => [updatedSession, ...prev]);
-        setActiveSession(updatedSession);
-        navigate(`/local-discovery/${updatedSession.id}`, { replace: true });
-      }
-    } catch (err) {
-      console.error('Error creating session:', err);
-      setError('Failed to create new chat');
-    } finally {
-      setLoading(false);
+    // Reload session with message
+    const updatedSession = await getChatSession(newSession.id);
+    if (updatedSession) {
+      setSessions((prev) => [updatedSession, ...prev]);
+      setActiveSession(updatedSession);
+      
+      // ✅ NEW: Apply fresh location and time to UI
+      setUserLocation(freshLocation);
+      setCity(freshCity);
+      updateLocationChip(freshLocation, freshCity);
+      
+      // Update time chip with fresh current time
+      setContextChips((prev) => {
+        const filtered = prev.filter((chip) => chip.type !== 'time');
+        return [
+          ...filtered,
+          {
+            id: 'time',
+            label: 'Time',
+            value: freshTime,
+            type: 'time',
+            removable: false,
+            icon: '🕐',
+          },
+        ];
+      });
+      
+      navigate(`/local-discovery/${updatedSession.id}`, { replace: true });
+      console.log(`✅ New session created with fresh context: ${freshCity}, ${freshTime}`);
     }
-  };
+  } catch (err) {
+    console.error('Error creating session:', err);
+    setError('Failed to create new chat');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const selectSession = async (sessionId: string) => {
-    const session = sessions.find((s) => s.id === sessionId);
-    if (session) {
-      setActiveSession(session);
+  const session = sessions.find((s) => s.id === sessionId);
+  if (session) {
+    setActiveSession(session);
+    navigate(`/local-discovery/${sessionId}`);
+    
+    // ✅ CHANGED: Use helper function
+    applySessionContext(session);
+  } else {
+    // Fetch from backend if not in local state
+    const fetchedSession = await getChatSession(sessionId);
+    if (fetchedSession) {
+      setActiveSession(fetchedSession);
       navigate(`/local-discovery/${sessionId}`);
-    } else {
-      // Fetch from backend if not in local state
-      const fetchedSession = await getChatSession(sessionId);
-      if (fetchedSession) {
-        setActiveSession(fetchedSession);
-        navigate(`/local-discovery/${sessionId}`);
-      }
+      applySessionContext(fetchedSession);
     }
-  };
+  }
+};
 
   const deleteSession = async (sessionId: string) => {
     try {
@@ -505,7 +609,7 @@ const updatePreferenceChips = (prefs: UserPreferences) => {
   });
 };
 
-const setManualTime = (timeOfDay: string) => {
+const setManualTime = async (timeOfDay: string) => {
   setContextChips((prev) => {
     const filtered = prev.filter((chip) => chip.type !== 'time');
     return [
@@ -521,7 +625,30 @@ const setManualTime = (timeOfDay: string) => {
     ];
   });
   
-  console.log(`✅ Time manually set to: ${timeOfDay}`);
+  // ✅ NEW: Save to backend
+  if (activeSession) {
+    try {
+      await updateSessionContext(
+        activeSession.id,
+        undefined, // don't change location
+        undefined, // don't change city
+        timeOfDay  // update time
+      );
+      
+      // Update local session state
+      const updatedSession = {
+        ...activeSession,
+        manual_time: timeOfDay,
+      };
+      setActiveSession(updatedSession);
+      updateSessionInList(updatedSession);
+      
+      console.log(`✅ Time manually set to: ${timeOfDay} and saved to backend`);
+    } catch (err) {
+      console.error('Failed to save manual time:', err);
+      setError('Failed to save time preference');
+    }
+  }
 };
 
 const setManualLocation = async (location: Location, cityName: string) => {
@@ -544,17 +671,31 @@ const setManualLocation = async (location: Location, cityName: string) => {
     ];
   });
   
-  // Update active session location if exists
+  // ✅ NEW: Save to backend
   if (activeSession) {
-    const updatedSession = {
-      ...activeSession,
-      location,
-      city: cityName,
-    };
-    setActiveSession(updatedSession);
+    try {
+      await updateSessionContext(
+        activeSession.id,
+        location,   // update location
+        cityName,   // update city
+        undefined   // don't change time
+      );
+      
+      // Update local session state
+      const updatedSession = {
+        ...activeSession,
+        manual_location: location,
+        manual_city: cityName,
+      };
+      setActiveSession(updatedSession);
+      updateSessionInList(updatedSession);
+      
+      console.log(`✅ Location manually set to: ${cityName} (${location.lat}, ${location.lon}) and saved to backend`);
+    } catch (err) {
+      console.error('Failed to save manual location:', err);
+      setError('Failed to save location preference');
+    }
   }
-  
-  console.log(`✅ Location manually set to: ${cityName} (${location.lat}, ${location.lon})`);
 };
   return {
     // State

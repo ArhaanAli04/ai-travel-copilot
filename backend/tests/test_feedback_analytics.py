@@ -3,7 +3,7 @@ Tests for feedback and analytics system (Day 22)
 """
 import pytest
 import asyncio
-from datetime import datetime
+from datetime import datetime,timezone
 
 
 # ✅ FIX: Create fresh service instances per test
@@ -42,7 +42,7 @@ class TestFeedback:
             user_id="test_user_1",
             feedback_type="thumbs_up",
             rating=None,
-            visited_at=datetime.utcnow(),
+            visited_at=datetime.now(timezone.utc),
             comment="Great coffee and ambiance!",
             tags=["quiet", "good_wifi"]
         )
@@ -70,7 +70,7 @@ class TestFeedback:
             user_id="test_user_2",
             feedback_type="rating",
             rating=5,
-            visited_at=datetime.utcnow(),
+            visited_at=datetime.now(timezone.utc),
             comment="Excellent place for work!",
             tags=["productive", "friendly_staff"]
         )

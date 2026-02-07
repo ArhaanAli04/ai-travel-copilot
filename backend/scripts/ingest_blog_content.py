@@ -9,7 +9,7 @@ import asyncio
 import argparse
 import time
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -119,7 +119,7 @@ async def ingest_city_blogs(
         last_ingested = await rss_service.get_last_ingested_date("blog", city)
         
         if last_ingested:
-            days_since = (datetime.utcnow() - last_ingested).total_seconds() / 86400
+            days_since = (datetime.now(timezone.utc) - last_ingested).total_seconds() / 86400
             logger.info(f"  Last ingested: {last_ingested.strftime('%Y-%m-%d %H:%M:%S')} ({days_since:.1f} days ago)")
             
             # Adjust days_back for incremental update

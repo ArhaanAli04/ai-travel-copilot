@@ -4,7 +4,7 @@ RSS Feed service for scraping travel and food blogs
 import feedparser
 import requests
 from typing import List, Dict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 from bs4 import BeautifulSoup
 import re
 import logging
@@ -275,7 +275,7 @@ class RSSService:
                 return []
             
             # Calculate cutoff date
-            cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
             
             entries = []
             for entry in feed.entries:
@@ -286,15 +286,15 @@ class RSSService:
                     try:
                         published_dt = datetime.fromtimestamp(mktime(entry.published_parsed))
                     except:
-                        published_dt = datetime.utcnow()
+                        published_dt = datetime.now(timezone.utc)
                 elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
                     from time import mktime
                     try:
                         published_dt = datetime.fromtimestamp(mktime(entry.updated_parsed))
                     except:
-                        published_dt = datetime.utcnow()
+                        published_dt = datetime.now(timezone.utc)
                 else:
-                    published_dt = datetime.utcnow()
+                    published_dt = datetime.now(timezone.utc)
                 
                 # Filter by date
                 if published_dt < cutoff_date:
@@ -429,7 +429,7 @@ class RSSService:
         metadata = IngestionMetadata(
             source=source,
             city=city,
-            last_scraped_at=datetime.utcnow(),
+            last_scraped_at=datetime.now(timezone.utc),
             records_processed=records_processed,
             status=status,
             error_message=error_message

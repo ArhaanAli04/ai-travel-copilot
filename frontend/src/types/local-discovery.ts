@@ -59,6 +59,9 @@ export interface ChatSession {
   updated_at: Date;
   city: string;
   location: Location;
+  manual_location?: Location | null;
+  manual_city?: string | null;
+  manual_time?: string | null;
 }
 
 export interface ContextChip {

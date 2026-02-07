@@ -3,7 +3,7 @@ Unit tests for disruption API endpoints
 """
 import pytest
 from fastapi.testclient import TestClient
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 from sqlalchemy.orm import Session
 
 from app.main import app
@@ -22,7 +22,7 @@ def create_test_case_data():
         "airline": "American Airlines",
         "origin": "New York (JFK)",
         "destination": "London (LHR)",
-        "disruption_date": (datetime.utcnow() + timedelta(days=1)).isoformat(),
+        "disruption_date": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
         "pnr": "ABC123",
         "notes": "Flight cancelled due to weather"
     }

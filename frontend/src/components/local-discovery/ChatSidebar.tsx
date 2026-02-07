@@ -32,7 +32,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     });
   };
 
-  const renderSessionCard = (session: ChatSession) => (
+  const renderSessionCard = (session: ChatSession) => {
+   
+
+  return (
     <div
       key={session.id}
       onClick={() => {
@@ -58,7 +61,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         </div>
         <div className="flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="truncate">{formatRelativeTime(session.updated_at)}</span>
+          <span className="truncate">{formatRelativeTime(new Date(session.updated_at))}</span>
         </div>
         {session.messages.length > 0 && (
           <div className="flex items-center gap-1.5">
@@ -69,20 +72,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       </div>
 
       {/* Delete Button */}
-      <div className="absolute top-3 right-3">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDeleteSession(session.id);
-          }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg bg-[#EF4444]/10 hover:bg-[#EF4444]/20"
-          aria-label="Delete chat"
-        >
-          <Trash2 className="w-4 h-4 text-[#EF4444]" />
-        </button>
-      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDeleteSession(session.id);
+        }}
+        className={`absolute top-3 right-3 transition-all p-1.5 rounded-lg bg-[#EF4444]/10 hover:bg-[#EF4444]/20 hover:scale-110 backdrop-blur-sm cursor-pointer ${
+          activeSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+        aria-label="Delete chat"
+      >
+        <Trash2 className="w-4 h-4 text-[#EF4444]" />
+      </button>
     </div>
   );
+};
 
   return (
     <>

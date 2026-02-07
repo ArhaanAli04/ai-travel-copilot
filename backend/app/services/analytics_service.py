@@ -3,7 +3,7 @@ Service for analytics tracking and reporting
 """
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
 import certifi
@@ -59,9 +59,9 @@ class AnalyticsService:
                 "results_count": results_count,
                 "response_time_ms": response_time_ms,
                 "user_id": user_id,
-                "timestamp": datetime.utcnow(),
-                "hour_of_day": datetime.utcnow().hour,
-                "day_of_week": datetime.utcnow().strftime("%A")
+                "timestamp":datetime.now(timezone.utc),
+                "hour_of_day": datetime.now(timezone.utc).hour,
+                "day_of_week": datetime.now(timezone.utc).strftime("%A")
             }
             
             result = await self.analytics_collection.insert_one(query_doc)
@@ -85,7 +85,7 @@ class AnalyticsService:
             List of cities with search counts
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             pipeline = [
                 {"$match": {"timestamp": {"$gte": cutoff_date}}},
@@ -125,7 +125,7 @@ class AnalyticsService:
             List of hours with search counts
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             match_query = {"timestamp": {"$gte": cutoff_date}}
             if city:
@@ -160,7 +160,7 @@ class AnalyticsService:
             Dict with top categories, cuisines, dietary preferences
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             match_query = {"timestamp": {"$gte": cutoff_date}}
             if city:
@@ -225,7 +225,7 @@ class AnalyticsService:
             Dict with all analytics data
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             match_query = {"timestamp": {"$gte": cutoff_date}}
             if city:

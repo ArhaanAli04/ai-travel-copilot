@@ -4,7 +4,7 @@ Run with: pytest tests/test_blog_ingestion.py -v
 """
 import pytest
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 
 from app.core.mongo import connect_to_mongo, close_mongo_connection, get_database
 from app.services.rss_service import rss_service
@@ -81,7 +81,7 @@ class TestBlogStorage:
         
         # Check timestamp is recent (within last 7 days)
         last_scraped = metadata['last_scraped_at']
-        time_diff = (datetime.utcnow() - last_scraped).total_seconds() / 86400
+        time_diff = (datetime.now(timezone.utc) - last_scraped).total_seconds() / 86400
         assert time_diff < 7, f"Last scrape too old: {time_diff:.1f} days ago"
         
         print(f"\n✅ Ingestion metadata valid")

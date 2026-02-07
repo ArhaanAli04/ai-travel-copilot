@@ -3,7 +3,7 @@ Service for handling user feedback on POIs
 """
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import certifi
@@ -65,10 +65,10 @@ class FeedbackService:
                 "user_id": user_id,
                 "feedback_type": feedback_type,
                 "rating": rating,
-                "visited_at": visited_at or datetime.utcnow(),
+                "visited_at": visited_at or datetime.now(timezone.utc),
                 "comment": comment,
                 "tags": tags or [],
-                "submitted_at": datetime.utcnow()
+                "submitted_at": datetime.now(timezone.utc)
             }
             
             # Add feedback to array
@@ -76,7 +76,7 @@ class FeedbackService:
                 {"_id": ObjectId(poi_id)},
                 {
                     "$push": {"user_feedback": feedback_obj},
-                    "$set": {"last_feedback_at": datetime.utcnow()}
+                    "$set": {"last_feedback_at": datetime.now(timezone.utc)}
                 }
             )
             
@@ -186,7 +186,7 @@ class FeedbackService:
                 query["category"] = category
             
             # Calculate cutoff date for recency
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             # Find POIs with pipeline for trending score
             pipeline = [

@@ -4,7 +4,7 @@ API routes for Chat Session Management
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
-from datetime import datetime
+from datetime import datetime,timezone
 
 from app.services.chat_service import chat_service
 from app.models.chat_session import (
@@ -133,8 +133,19 @@ async def update_chat_session(session_id: str, request: UpdateSessionRequest):
         if request.title:
             success = await chat_service.update_session_title(session_id, request.title)
             if not success:
-                raise HTTPException(status_code=500, detail="Failed to update session")
+                raise HTTPException(status_code=500, detail="Failed to update session title")
         
+        # ✅ NEW: Update manual context overrides if provided
+        if request.manual_location or request.manual_city or request.manual_time:
+            success = await chat_service.update_session_context(
+                session_id,
+                manual_location=request.manual_location.dict() if request.manual_location else None,
+                manual_city=request.manual_city,
+                manual_time=request.manual_time
+            )
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to update session context")
+            
         # Get updated session
         updated_session = await chat_service.get_session(session_id)
         
@@ -189,7 +200,7 @@ async def add_message_to_session(session_id: str, request: AddMessageRequest):
             role=request.role,
             content=request.content,
             pois=request.pois,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             location=request.location,
             preferences=request.preferences
         )
