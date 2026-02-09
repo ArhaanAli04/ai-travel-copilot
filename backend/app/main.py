@@ -21,7 +21,7 @@ from app.core.postgres import test_connection as test_postgres
 from app.core.mongo import connect_to_mongo, close_mongo_connection
 from app.core.qdrant import connect_to_qdrant
 from app.api import planner,flights,guides,disruptions,admin,local_discovery,chat
-
+from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,8 @@ async def startup_event():
     
     # Connect to Qdrant
     connect_to_qdrant()
+
+    scheduler_service.start()
     
     logger.info(f"📚 API Docs: http://localhost:8000/docs")
 
@@ -99,6 +101,9 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info(f"🛑 Shutting down {settings.APP_NAME}")
+
+    scheduler_service.shutdown()
+
     await close_mongo_connection()
 
 

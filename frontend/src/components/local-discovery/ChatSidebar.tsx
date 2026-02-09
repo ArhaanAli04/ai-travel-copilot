@@ -33,8 +33,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   };
 
   const renderSessionCard = (session: ChatSession) => {
-   
-
   return (
     <div
       key={session.id}

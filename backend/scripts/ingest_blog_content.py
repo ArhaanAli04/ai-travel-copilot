@@ -119,6 +119,9 @@ async def ingest_city_blogs(
         last_ingested = await rss_service.get_last_ingested_date("blog", city)
         
         if last_ingested:
+            # ✅ Make last_ingested timezone-aware if it's naive
+            if last_ingested.tzinfo is None:
+                last_ingested = last_ingested.replace(tzinfo=timezone.utc)
             days_since = (datetime.now(timezone.utc) - last_ingested).total_seconds() / 86400
             logger.info(f"  Last ingested: {last_ingested.strftime('%Y-%m-%d %H:%M:%S')} ({days_since:.1f} days ago)")
             
@@ -294,7 +297,8 @@ async def ingest_city_blogs(
         raise
     
     finally:
-        await close_mongo_connection()
+        #await close_mongo_connection()
+        pass
 
 
 async def main():

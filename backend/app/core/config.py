@@ -53,6 +53,23 @@ class Settings(BaseSettings):
     MAX_SEARCH_RESULTS: int = 7
     MAX_POLICY_SEARCH_RESULTS: int = 5
 
+    # Background Job Scheduling (Day 28)
+    SCHEDULER_ENABLED: bool = True
+    SCHEDULER_TIMEZONE: str = "Asia/Kolkata"
+    
+    # OSM Ingestion Schedule (monthly on 1st at 2 AM)
+    OSM_INGESTION_CRON_DAY: int = 1
+    OSM_INGESTION_CRON_HOUR: int = 2
+    OSM_INGESTION_CRON_MINUTE: int = 0
+    OSM_INGESTION_CITIES: str = "mumbai,goa,delhi"
+    
+    # RSS/Blog Ingestion Schedule (weekly on Sunday at 3 AM)
+    RSS_INGESTION_CRON_DAY_OF_WEEK: str = "sun"
+    RSS_INGESTION_CRON_HOUR: int = 3
+    RSS_INGESTION_CRON_MINUTE: int = 0
+    RSS_INGESTION_CITIES: str = "mumbai,goa,delhi"
+    RSS_INGESTION_DAYS_BACK: int = 7
+
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -65,6 +82,16 @@ class Settings(BaseSettings):
     def cors_origins(self) -> List[str]:
         """Parse ALLOWED_ORIGINS into a list"""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+    
+    @property
+    def osm_cities_list(self) -> List[str]:
+        """Parse OSM_INGESTION_CITIES into a list"""
+        return [city.strip() for city in self.OSM_INGESTION_CITIES.split(",")]
+    
+    @property
+    def rss_cities_list(self) -> List[str]:
+        """Parse RSS_INGESTION_CITIES into a list"""
+        return [city.strip() for city in self.RSS_INGESTION_CITIES.split(",")]
     
     model_config = SettingsConfigDict(
         env_file=".env",

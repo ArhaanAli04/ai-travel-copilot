@@ -284,18 +284,21 @@ class RSSService:
                 if hasattr(entry, 'published_parsed') and entry.published_parsed:
                     from time import mktime
                     try:
-                        published_dt = datetime.fromtimestamp(mktime(entry.published_parsed))
-                    except:
+                        published_dt = datetime.fromtimestamp(mktime(entry.published_parsed),tz=timezone.utc)
+                    except Exception:
                         published_dt = datetime.now(timezone.utc)
                 elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
                     from time import mktime
                     try:
-                        published_dt = datetime.fromtimestamp(mktime(entry.updated_parsed))
-                    except:
+                        published_dt = datetime.fromtimestamp(mktime(entry.updated_parsed),tz=timezone.utc)
+                    except Exception:
                         published_dt = datetime.now(timezone.utc)
                 else:
                     published_dt = datetime.now(timezone.utc)
                 
+                # ✅ Ensure published_dt is timezone-aware before comparison
+                if published_dt.tzinfo is None:
+                    published_dt = published_dt.replace(tzinfo=timezone.utc)
                 # Filter by date
                 if published_dt < cutoff_date:
                     continue

@@ -9,21 +9,19 @@ import sys
 from pathlib import Path
 import logging
 
-
+from app.schemas.admin import (
+    IngestCityRequest,
+    IngestCityResponse,
+    EnrichFoursquareRequest,
+    IngestBlogRequest,
+    TriggerIngestionRequest,
+    TriggerIngestionResponse,
+    SchedulerStatusResponse,
+    ScheduledJobInfo,
+    HealthCheckResponse
+)
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-class IngestCityRequest(BaseModel):
-    city: str
-    categories: Optional[List[str]] = None
-
-
-class IngestCityResponse(BaseModel):
-    message: str
-    city: str
-    status: str
-
 
 @router.post("/ingest-city", response_model=IngestCityResponse)
 async def ingest_city(
@@ -59,12 +57,6 @@ async def ingest_city(
         status="processing"
     )
 
-class EnrichFoursquareRequest(BaseModel):
-    city: str
-    limit: Optional[int] = None
-    categories: Optional[List[str]] = None
-
-
 #  NEW ENDPOINT
 @router.post("/enrich-city-foursquare", response_model=IngestCityResponse)
 async def enrich_city_foursquare(
@@ -96,13 +88,6 @@ async def enrich_city_foursquare(
         status="processing"
     )
 
-#  ADD THIS MODEL
-class IngestBlogRequest(BaseModel):
-    city: str
-    days_back: Optional[int] = 7
-    include_general: Optional[bool] = True
-
-
 #  ADD THIS ENDPOINT
 @router.post("/ingest-blogs", response_model=IngestCityResponse)
 async def ingest_blogs(
@@ -132,6 +117,159 @@ async def ingest_blogs(
         status="processing"
     )
 
+# ============================================================================
+# New Scheduler Endpoints (Day 28)
+# ============================================================================
+
+@router.post("/trigger-ingestion", response_model=TriggerIngestionResponse)
+async def trigger_ingestion(
+    request: TriggerIngestionRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Manually trigger a scheduled ingestion job
+    
+    Bypasses the scheduler and runs the job immediately in the background.
+    
+    **Supported Sources:**
+    - `osm`: OpenStreetMap POI ingestion
+    - `rss`: Blog RSS feed ingestion
+    
+    **Examples:**
+    
+    Trigger OSM ingestion:
+    ```json
+    {
+        "source": "osm",
+        "cities": ["mumbai", "goa"]
+    }
+    ```
+    
+    Trigger RSS ingestion:
+    ```json
+    {
+        "source": "rss",
+        "cities": ["mumbai"],
+        "days_back": 7
+    }
+    ```
+    """
+    from app.core.config import settings
+    
+    # Validate source
+    if request.source not in ["osm", "rss"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid source. Must be 'osm' or 'rss'"
+        )
+    
+    # Get cities (use provided or default from config)
+    if request.cities:
+        cities = request.cities
+    else:
+        if request.source == "osm":
+            cities = settings.osm_cities_list
+        else:
+            cities = settings.rss_cities_list
+    
+    # Validate cities
+    valid_cities = ["mumbai", "goa", "delhi", "bangalore", "pune"]
+    invalid_cities = [c for c in cities if c.lower() not in valid_cities]
+    if invalid_cities:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid cities: {invalid_cities}. Valid options: {valid_cities}"
+        )
+    
+    # Trigger the appropriate job
+    if request.source == "osm":
+        background_tasks.add_task(
+            trigger_osm_job_manually,
+            cities
+        )
+        logger.info(f"🚀 Manually triggered OSM ingestion for: {', '.join(cities)}")
+        message = f"OSM ingestion triggered for {len(cities)} cities"
+    
+    else:  # rss
+        days_back = request.days_back or settings.RSS_INGESTION_DAYS_BACK
+        background_tasks.add_task(
+            trigger_rss_job_manually,
+            cities,
+            days_back
+        )
+        logger.info(f"🚀 Manually triggered RSS ingestion for: {', '.join(cities)} (last {days_back} days)")
+        message = f"RSS ingestion triggered for {len(cities)} cities"
+    
+    return TriggerIngestionResponse(
+        message=message,
+        source=request.source,
+        cities=cities,
+        status="triggered"
+    )
+
+
+@router.get("/scheduler/status", response_model=SchedulerStatusResponse)
+async def get_scheduler_status():
+    """
+    Get current scheduler status and list all scheduled jobs
+    
+    Returns:
+    - Whether scheduler is running
+    - Total number of jobs
+    - Details of each job (name, next run time, trigger config)
+    
+    **Response Example:**
+    ```json
+    {
+        "is_running": true,
+        "total_jobs": 2,
+        "timezone": "Asia/Kolkata",
+        "jobs": [
+            {
+                "id": "osm_monthly_ingestion",
+                "name": "Monthly OSM POI Ingestion",
+                "next_run_time": "2026-03-01T02:00:00+05:30",
+                "trigger": "cron[day='1', hour='2', minute='0']"
+            }
+        ]
+    }
+    ```
+    """
+    from app.services.scheduler_service import scheduler_service
+    from app.core.config import settings
+    
+    if not scheduler_service.is_running:
+        return SchedulerStatusResponse(
+            is_running=False,
+            total_jobs=0,
+            timezone=None,
+            jobs=[]
+        )
+    
+    jobs = scheduler_service.get_jobs()
+    
+    job_details = []
+    for job in jobs:
+        job_details.append(
+            ScheduledJobInfo(
+                id=job.id,
+                name=job.name,
+                next_run_time=job.next_run_time.isoformat() if job.next_run_time else None,
+                trigger=str(job.trigger)
+            )
+        )
+    
+    return SchedulerStatusResponse(
+        is_running=True,
+        total_jobs=len(jobs),
+        timezone=settings.SCHEDULER_TIMEZONE,
+        jobs=job_details
+    )
+
+
+# ============================================================================
+# Background Task Helper Functions
+# ============================================================================
 
 def run_blog_ingestion(
     city: str,
@@ -255,12 +393,32 @@ def run_ingestion_script(city: str, categories: Optional[List[str]] = None):
     except Exception as e:
         logger.error(f"❌ Ingestion exception for {city}: {e}")
 
+def trigger_osm_job_manually(cities: List[str]):
+    """Manually trigger OSM ingestion job"""
+    import asyncio
+    from app.tasks.ingestion_tasks import ingest_osm_task
+    
+    try:
+        asyncio.run(ingest_osm_task(cities))
+        logger.info(f"✅ Manual OSM ingestion completed for: {', '.join(cities)}")
+    except Exception as e:
+        logger.error(f"❌ Manual OSM ingestion failed: {e}")
 
+def trigger_rss_job_manually(cities: List[str], days_back: int):
+    """Manually trigger RSS ingestion job"""
+    import asyncio
+    from app.tasks.ingestion_tasks import ingest_rss_task
+    
+    try:
+        asyncio.run(ingest_rss_task(cities, days_back))
+        logger.info(f"✅ Manual RSS ingestion completed for: {', '.join(cities)}")
+    except Exception as e:
+        logger.error(f"❌ Manual RSS ingestion failed: {e}")
 
-@router.get("/health")
+@router.get("/health", response_model=HealthCheckResponse)
 async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "ok",
-        "message": "Admin API is running"
-    }
+    """Health check endpoint for admin API"""
+    return HealthCheckResponse(
+        status="ok",
+        message="Admin API is running"
+    )
