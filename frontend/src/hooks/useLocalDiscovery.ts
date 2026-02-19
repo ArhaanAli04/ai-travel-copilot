@@ -27,6 +27,7 @@ import {
 import { getCurrentLocation, getMockLocation } from '../utils/geolocation';
 import { getTimeOfDay, getGreeting } from '../utils/datetime';
 import { generateMockResponse } from '../utils/mock-data';
+import { getErrorMessage, ERROR_MESSAGES } from '../utils/error-messages';
 
 export const useLocalDiscovery = () => {
   const navigate = useNavigate(); //  ADD
@@ -41,6 +42,8 @@ export const useLocalDiscovery = () => {
   const [preferences, setPreferences] = useState<UserPreferences>({});
   const [userId] = useState(getUserId());
   const [currentTime, setCurrentTime] = useState(getTimeOfDay());
+  const [locationError, setLocationError] = useState<string | null>(null); // ✨ NEW
+  const [retrying, setRetrying] = useState(false);
   // Initialize: Load location and sessions
   useEffect(() => {
     initializeApp();
@@ -148,6 +151,7 @@ export const useLocalDiscovery = () => {
       }
     } catch (err) {
       console.error('Error loading session:', err);
+      setError(getErrorMessage(err));
     }
   };
 
@@ -181,17 +185,27 @@ export const useLocalDiscovery = () => {
 
   const initializeApp = async () => {
     setLoading(true);
-    try {
-      // Get user location
-      //await loadUserLocation();
+    setError(null);
+    setLocationError(null);
+     try {
+      // ✨ CHANGED: Try to get location, but don't block on failure
+      try {
+        await loadUserLocation();
+      } catch (err) {
+        console.warn('Location not available:', err);
+        setLocationError(getErrorMessage(err));
+        // Continue with fallback location
+        const mock = getMockLocation('mumbai');
+        setUserLocation(mock.location);
+        setCity(mock.city);
+        updateLocationChip(mock.location, mock.city);
+      }
 
-      //load saved preferences
       await loadUserPreferences();
-      // Load chat sessions
       await loadSessions();
     } catch (err) {
       console.error('Initialization error:', err);
-      setError('Failed to initialize app');
+      setError(getErrorMessage(err)); // ✨ CHANGED
     } finally {
       setLoading(false);
     }
@@ -203,15 +217,26 @@ export const useLocalDiscovery = () => {
       setUserLocation(result.location);
       setCity(result.city);
       updateLocationChip(result.location, result.city);
+      setLocationError(null);
     } catch (err) {
       console.warn('Using mock location:', err);
-      // Fallback to mock location
-      const mock = getMockLocation('mumbai');
-      setUserLocation(mock.location);
-      setCity(mock.city);
-      updateLocationChip(mock.location, mock.city);
+      throw err;
     }
   };
+
+  // ✨ NEW: Retry location function
+  const retryLocation = useCallback(async () => {
+    setRetrying(true);
+    setLocationError(null);
+    
+    try {
+      await loadUserLocation();
+    } catch (err) {
+      setLocationError(getErrorMessage(err));
+    } finally {
+      setRetrying(false);
+    }
+  }, []);
 
   const loadSessions = async () => {
     try {
@@ -254,6 +279,7 @@ export const useLocalDiscovery = () => {
 
   const createNewSession = async () => {
   setLoading(true);
+  setError(null);
   try {
     // ✅ NEW: Get fresh current location for new session
     let freshLocation: Location;
@@ -326,7 +352,7 @@ What are you looking for today?`,
     }
   } catch (err) {
     console.error('Error creating session:', err);
-    setError('Failed to create new chat');
+    setError(getErrorMessage(err));
   } finally {
     setLoading(false);
   }
@@ -338,7 +364,6 @@ What are you looking for today?`,
   if (session) {
     setActiveSession(session);
     navigate(`/local-discovery/${sessionId}`);
-    
     // ✅ CHANGED: Use helper function
     applySessionContext(session);
   } else {
@@ -369,13 +394,13 @@ What are you looking for today?`,
       }
     } catch (err) {
       console.error('Error deleting session:', err);
-      setError('Failed to delete chat');
+      setError(getErrorMessage(err));
     }
   };
 
   const sendMessage = async (content: string, useMock: boolean = false) => {
     if (!activeSession || !userLocation) {
-      setError('No active session or location');
+      setError(ERROR_MESSAGES.SEND_MESSAGE_FAILED);
       return;
     }
 
@@ -441,11 +466,17 @@ What are you looking for today?`,
       updateSessionInList(finalSession);
     } catch (err) {
       console.error('Error sending message:', err);
-      setError('Failed to send message. Please try again.');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
+
+  // ✨ NEW: Retry send message
+  const retrySendMessage = useCallback((content: string) => {
+    setError(null);
+    sendMessage(content, false);
+  }, [activeSession, userLocation, city, preferences]);
 
   const updateSessionInList = (updatedSession: ChatSession) => {
     setSessions((prev) => {
@@ -467,7 +498,7 @@ What are you looking for today?`,
       await saveUserPreferences(userId, updatedPreferences);
     } catch (err) {
       console.error('Failed to save preferences:', err);
-      setError('Failed to save preferences');
+      setError(getErrorMessage(err));
     }
 
     // Add context chip
@@ -521,7 +552,6 @@ What are you looking for today?`,
         console.log(`✅ Feedback submitted: ${feedbackType} for POI ${poiId}`);
       } catch (err) {
         console.error('Error submitting feedback:', err);
-        setError('Failed to submit feedback');
       }
     };
 
@@ -646,7 +676,7 @@ const setManualTime = async (timeOfDay: string) => {
       console.log(`✅ Time manually set to: ${timeOfDay} and saved to backend`);
     } catch (err) {
       console.error('Failed to save manual time:', err);
-      setError('Failed to save time preference');
+      setError(getErrorMessage(err));
     }
   }
 };
@@ -654,6 +684,7 @@ const setManualTime = async (timeOfDay: string) => {
 const setManualLocation = async (location: Location, cityName: string) => {
   setUserLocation(location);
   setCity(cityName);
+  setLocationError(null);
   
   // Update location chip
   setContextChips((prev) => {
@@ -693,7 +724,7 @@ const setManualLocation = async (location: Location, cityName: string) => {
       console.log(`✅ Location manually set to: ${cityName} (${location.lat}, ${location.lon}) and saved to backend`);
     } catch (err) {
       console.error('Failed to save manual location:', err);
-      setError('Failed to save location preference');
+      setError(getErrorMessage(err));
     }
   }
 };
@@ -707,6 +738,8 @@ const setManualLocation = async (location: Location, cityName: string) => {
     city,
     contextChips,
     preferences,
+    locationError,
+    retrying,
 
     // Actions
     createNewSession,
@@ -719,5 +752,8 @@ const setManualLocation = async (location: Location, cityName: string) => {
     handleFeedback,
     setManualTime,
     setManualLocation,
+    retryLocation, // ✨ NEW
+    retrySendMessage, // ✨ NEW
+    clearError: () => setError(null),
   };
 };

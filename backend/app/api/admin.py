@@ -1,7 +1,7 @@
 """
 Admin API endpoints for data ingestion and management
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks,status
 from pydantic import BaseModel
 from typing import Optional, List
 import subprocess
@@ -20,6 +20,12 @@ from app.schemas.admin import (
     ScheduledJobInfo,
     HealthCheckResponse
 )
+
+from app.schemas.monitoring import MonitoringResponse
+from app.services.monitoring_service import monitoring_service
+from app.services.alert_service import alert_service
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -265,6 +271,139 @@ async def get_scheduler_status():
         timezone=settings.SCHEDULER_TIMEZONE,
         jobs=job_details
     )
+
+@router.get(
+    "/monitoring",
+    response_model=MonitoringResponse,
+    summary="Monitoring Dashboard",
+    description="Complete monitoring dashboard with health, storage, jobs, and alerts"
+)
+async def get_monitoring_dashboard() -> MonitoringResponse:
+    """
+    Get comprehensive monitoring dashboard
+    
+    Returns:
+        - System health status
+        - Storage usage and alerts
+        - Scheduler job status
+        - Active alerts and warnings
+    """
+    try:
+        dashboard = await monitoring_service.get_monitoring_dashboard()
+        
+        # Check if alerts need to be sent
+        if settings.ALERTS_ENABLED and dashboard.alerts:
+            await _send_alerts_if_needed(dashboard)
+        
+        return dashboard
+    
+    except Exception as e:
+        logger.error(f"Failed to get monitoring dashboard: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve monitoring data"
+        )
+
+
+async def _send_alerts_if_needed(dashboard: MonitoringResponse):
+    """
+    Send alerts if critical thresholds are exceeded
+    
+    This is called automatically by the monitoring endpoint
+    """
+    if not settings.alert_recipients_list:
+        logger.warning("⚠️ No alert recipients configured")
+        return
+    
+    # Check storage alerts
+    storage = dashboard.storage
+    
+    if storage.total_storage_mb > settings.STORAGE_CRITICAL_THRESHOLD_MB:
+        logger.warning(f"🚨 CRITICAL: Storage at {storage.usage_percentage:.1f}%")
+        
+        await alert_service.send_storage_alert(
+            to_emails=settings.alert_recipients_list,
+            storage_mb=storage.total_storage_mb,
+            usage_percentage=storage.usage_percentage,
+            collections={k: v.dict() for k, v in storage.collections.items()}
+        )
+    
+    elif storage.total_storage_mb > settings.STORAGE_ALERT_THRESHOLD_MB:
+        logger.warning(f"⚠️ WARNING: Storage at {storage.usage_percentage:.1f}%")
+        
+        # Send alert only once per day (implement cooldown in production)
+        await alert_service.send_storage_alert(
+            to_emails=settings.alert_recipients_list,
+            storage_mb=storage.total_storage_mb,
+            usage_percentage=storage.usage_percentage,
+            collections={k: v.dict() for k, v in storage.collections.items()}
+        )
+    
+    # Check service health alerts
+    for service_name, service_health in dashboard.health.services.items():
+        if service_health.status == "unhealthy":
+            logger.error(f"🚨 Service down: {service_name}")
+            
+            await alert_service.send_service_down_alert(
+                to_emails=settings.alert_recipients_list,
+                service_name=service_health.service_name,
+                error_message=service_health.error_message or "Unknown error"
+            )
+
+
+# ============================================================
+# NEW: Manual Alert Test Endpoint ✨
+# ============================================================
+
+@router.post(
+    "/test-alert",
+    summary="Test Alert System",
+    description="Send a test alert email to configured recipients"
+)
+async def test_alert_system():
+    """
+    Send a test alert to verify email configuration
+    
+    Useful for testing Resend API integration
+    """
+    if not settings.ALERTS_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Alerts are disabled in configuration"
+        )
+    
+    if not settings.alert_recipients_list:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No alert recipients configured. Set ALERT_EMAIL_RECIPIENTS in .env"
+        )
+    
+    try:
+        success = await alert_service.send_email_alert(
+            to_emails=settings.alert_recipients_list,
+            subject="🧪 Test Alert - AI Travel Copilot",
+            message="This is a test alert to verify the email configuration is working correctly.",
+            priority="low"
+        )
+        
+        if success:
+            return {
+                "status": "success",
+                "message": f"Test alert sent to {len(settings.alert_recipients_list)} recipients",
+                "recipients": settings.alert_recipients_list
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send test alert"
+            )
+    
+    except Exception as e:
+        logger.error(f"Test alert failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Test alert failed: {str(e)}"
+        )
 
 
 # ============================================================================

@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.postgres import test_connection as test_postgres
 from app.core.mongo import connect_to_mongo, close_mongo_connection
 from app.core.qdrant import connect_to_qdrant
-from app.api import planner,flights,guides,disruptions,admin,local_discovery,chat
+from app.api import planner,flights,guides,disruptions,admin,local_discovery,chat,health
 from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
@@ -50,17 +50,19 @@ app.include_router(disruptions.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(local_discovery.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(health.router, prefix="/api")
 
 # Health check endpoint
-@app.get("/health", tags=["Health"])
-async def health_check():
+@app.get("/health", tags=["Health"], deprecated=True)
+async def legacy_health_check():
     """
-    Health check endpoint to verify the API is running
+    Legacy health check endpoint (deprecated)
+    Use /api/health for detailed health checks
     """
     return {
         "status": "healthy",
+        "message": "Use /api/health for detailed health checks",
         "app": settings.APP_NAME,
-        "environment": settings.ENV,
         "version": "0.1.0"
     }
 

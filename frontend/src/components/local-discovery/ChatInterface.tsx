@@ -12,6 +12,7 @@ import { MapPin } from 'lucide-react';
 interface ChatInterfaceProps {
   session: ChatSession | null;
   loading: boolean;
+  error?: string | null;
   contextChips: ContextChipType[];
   onSendMessage: (message: string) => void;
   onRemoveChip?: (chipId: string) => void;
@@ -23,6 +24,7 @@ interface ChatInterfaceProps {
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   session,
   loading,
+  error,
   contextChips,
   onSendMessage,
   onRemoveChip,
@@ -51,6 +53,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <ChatMessages
           messages={session.messages}
           loading={loading}
+          error={error}
           onFeedback={onFeedback}
           onOpenMap={onOpenMap} 
         />
@@ -61,7 +64,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <ChatInput
           onSend={onSendMessage}
           loading={loading}
-          disabled={!session}
+          disabled={!session || !!error}
         />
       </div>
 

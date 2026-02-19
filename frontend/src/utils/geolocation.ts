@@ -1,8 +1,10 @@
 /**
  * Geolocation utilities for Local Discovery
+ * ✨ ENHANCED with better error handling
  */
 
 import {type Location } from '../types/local-discovery';
+import { ERROR_MESSAGES } from './error-messages';
 
 export interface GeolocationResult {
   location: Location;
@@ -12,11 +14,12 @@ export interface GeolocationResult {
 
 /**
  * Get user's current location using browser API
+ * ✨ ENHANCED with better error messages
  */
 export const getCurrentLocation = (): Promise<GeolocationResult> => {
-  return new Promise((resolve, reject) => {
+return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by your browser'));
+      reject(new Error(ERROR_MESSAGES.LOCATION_NOT_SUPPORTED));
       return;
     }
 
@@ -32,31 +35,33 @@ export const getCurrentLocation = (): Promise<GeolocationResult> => {
           const city = await reverseGeocode(location);
           resolve({ location, city });
         } catch (error) {
-          // Fallback to default city if reverse geocoding fails
           console.warn('Reverse geocoding failed, using default city');
           resolve({ location, city: 'mumbai' });
         }
       },
       (error) => {
-        let errorMessage = 'Unable to retrieve your location';
+        let errorMessage = ERROR_MESSAGES.LOCATION_UNAVAILABLE;
         
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Location permission denied';
+            errorMessage = ERROR_MESSAGES.LOCATION_DENIED;
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information unavailable';
+            errorMessage = ERROR_MESSAGES.LOCATION_UNAVAILABLE;
             break;
           case error.TIMEOUT:
-            errorMessage = 'Location request timed out';
+            errorMessage = ERROR_MESSAGES.LOCATION_TIMEOUT;
             break;
         }
 
-        reject(new Error(errorMessage));
+        // ✨ NEW: Attach error code for better handling
+        const err: any = new Error(errorMessage);
+        err.code = error.code;
+        reject(err);
       },
       {
         enableHighAccuracy: true,
-        timeout: 5000,
+        timeout: 10000, // ✨ CHANGED: Increased from 5s to 10s
         maximumAge: 0,
       }
     );
@@ -66,11 +71,20 @@ export const getCurrentLocation = (): Promise<GeolocationResult> => {
 /**
  * Reverse geocode coordinates to city name
  * Using Nominatim API (free, no API key required)
+ * ✨ ENHANCED with better fallback logic
  */
-export const reverseGeocode = async (location: Location): Promise<string> => {
+export const reverseGeocode = async (
+  location: Location,
+  retries: number = 2
+): Promise<string> => {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${location.lat}&lon=${location.lon}&format=json`
+      `https://nominatim.openstreetmap.org/reverse?lat=${location.lat}&lon=${location.lon}&format=json`,
+      {
+        headers: {
+          'User-Agent': 'AI-Travel-Copilot/1.0', // ✨ NEW: Required by Nominatim
+        },
+      }
     );
 
     if (!response.ok) {
@@ -79,17 +93,24 @@ export const reverseGeocode = async (location: Location): Promise<string> => {
 
     const data = await response.json();
     
-    // Extract city name from response
     const city = 
       data.address?.city || 
       data.address?.town || 
       data.address?.village || 
       data.address?.state || 
-      'mumbai'; // Default fallback
+      'mumbai';
 
     return city.toLowerCase();
   } catch (error) {
     console.error('Reverse geocoding error:', error);
+    
+    // ✨ NEW: Retry logic
+    if (retries > 0) {
+      console.log(`⏳ Retrying reverse geocoding... (${2 - retries + 1}/2)`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return reverseGeocode(location, retries - 1);
+    }
+    
     return 'mumbai'; // Default fallback
   }
 };

@@ -4,8 +4,8 @@ import { Plane } from 'lucide-react';
 
 const navItems = [
   { name: "Planner", path: "/planner" },
-  { name: "Disruption", path: "/disruption" },
-  { name: "Local Discovery", path: "/local" },  // ✅ Just update the name
+  { name: "Disruption", path: "/disruptions" },
+  { name: "Local Discovery", path: "/local-discovery" },  // ✅ Just update the name
   { name: "Safety", path: "/safety" },
 ];
 
@@ -24,6 +24,9 @@ export function Navigation() {
 
   // Check if current path matches nav item
   const isActive = (path: string) => {
+    if (path === '/local-discovery') {
+      return location.pathname.startsWith('/local-discovery');
+    }
     return location.pathname === path;
   };
 

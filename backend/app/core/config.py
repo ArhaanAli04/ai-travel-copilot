@@ -70,6 +70,19 @@ class Settings(BaseSettings):
     RSS_INGESTION_CITIES: str = "mumbai,goa,delhi"
     RSS_INGESTION_DAYS_BACK: int = 7
 
+    # Storage Thresholds
+    STORAGE_ALERT_THRESHOLD_MB: float = 850.0  # Alert at 850 MB (85% of 1GB)
+    STORAGE_CRITICAL_THRESHOLD_MB: float = 950.0  # Critical at 950 MB (95%)
+    
+    # Alert Recipients (comma-separated emails)
+    ALERT_EMAIL_RECIPIENTS: str = ""  # e.g., "admin@example.com,dev@example.com"
+    
+    # Webhook for alerts (optional)
+    ALERT_WEBHOOK_URL: Optional[str] = None
+    
+    # Enable/disable alerts
+    ALERTS_ENABLED: bool = True
+
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -92,6 +105,13 @@ class Settings(BaseSettings):
     def rss_cities_list(self) -> List[str]:
         """Parse RSS_INGESTION_CITIES into a list"""
         return [city.strip() for city in self.RSS_INGESTION_CITIES.split(",")]
+    
+    @property
+    def alert_recipients_list(self) -> List[str]:
+        """Parse alert email recipients into a list"""
+        if not self.ALERT_EMAIL_RECIPIENTS:
+            return []
+        return [email.strip() for email in self.ALERT_EMAIL_RECIPIENTS.split(",")]
     
     model_config = SettingsConfigDict(
         env_file=".env",

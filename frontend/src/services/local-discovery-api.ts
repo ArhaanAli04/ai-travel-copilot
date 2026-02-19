@@ -3,37 +3,117 @@
  */
 
 import { type SuggestRequest, type SuggestResponse, type ChatSession, type Message } from '../types/local-discovery';
-
+import { getErrorMessage } from '../utils/error-messages';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// ✨ NEW: Timeout configuration
+const API_TIMEOUT = 30000; // 30 seconds
+
+// ✨ NEW: Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
 /**
- * Get personalized local recommendations
+ * ✨ NEW: Fetch with timeout
  */
-export const getSuggestions = async (request: SuggestRequest): Promise<SuggestResponse> => {
+const fetchWithTimeout = async (
+  url: string,
+  options: RequestInit = {},
+  timeout: number = API_TIMEOUT
+): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
   try {
-    const response = await fetch(`${API_BASE_URL}/local/suggest`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to get suggestions');
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout. Please try again.');
     }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching suggestions:', error);
     throw error;
   }
 };
 
 /**
+ * ✨ NEW: Retry wrapper for API calls
+ */
+const retryFetch = async <T>(
+  fetchFn: () => Promise<T>,
+  retries: number = MAX_RETRIES
+): Promise<T> => {
+  try {
+    return await fetchFn();
+  } catch (error: any) {
+    if (retries > 0 && isRetryable(error)) {
+      console.log(`⏳ Retrying... (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`);
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * (MAX_RETRIES - retries + 1)));
+      return retryFetch(fetchFn, retries - 1);
+    }
+    throw error;
+  }
+};
+
+/**
+ * ✨ NEW: Check if error is retryable
+ */
+const isRetryable = (error: any): boolean => {
+  // Network errors
+  if (error.message?.includes('Failed to fetch') || error.message?.includes('Network')) {
+    return true;
+  }
+  
+  // Timeout errors
+  if (error.message?.includes('timeout') || error.message?.includes('aborted')) {
+    return true;
+  }
+  
+  // 5xx server errors
+  if (error.status >= 500) {
+    return true;
+  }
+  
+  return false;
+};
+
+/**
+ * Get personalized local recommendations
+ *  ✨ ENHANCED with retry logic
+ */
+export const getSuggestions = async (request: SuggestRequest): Promise<SuggestResponse> => {
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/local/suggest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        const errorMessage = error.detail || 'Failed to get suggestions';
+        throw Object.assign(new Error(errorMessage), { status: response.status });
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
+      console.error('Error fetching suggestions:', error);
+      // Throw with user-friendly message
+      throw new Error(getErrorMessage(error));
+    }
+  });
+};
+
+/**
  * Submit feedback for a POI
+ * ✨ ENHANCED with retry logic
  */
 export const submitFeedback = async (
   poiId: string,
@@ -43,70 +123,73 @@ export const submitFeedback = async (
   comment?: string,
   tags?: string[]
 ) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/local/feedback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        poi_id: poiId,
-        user_id: userId,
-        feedback_type: feedbackType,
-        rating,
-        visited_at: new Date().toISOString(),
-        comment,
-        tags,
-      }),
-    });
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/local/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          poi_id: poiId,
+          user_id: userId,
+          feedback_type: feedbackType,
+          rating,
+          visited_at: new Date().toISOString(),
+          comment,
+          tags,
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to submit feedback');
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to submit feedback'), { status: response.status });
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      throw error;
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error submitting feedback:', error);
-    throw error;
-  }
+  });
 };
-
 /**
  * Get trending POIs
+ * ✨ ENHANCED with retry logic
  */
 export const getTrendingPOIs = async (
   city: string,
   category?: string,
   limit: number = 10
 ) => {
-  try {
-    const params = new URLSearchParams({
-      city,
-      limit: limit.toString(),
-      min_feedback: '3',
-      days: '30',
-    });
+  return retryFetch(async () => {
+    try {
+      const params = new URLSearchParams({
+        city,
+        limit: limit.toString(),
+        min_feedback: '3',
+        days: '30',
+      });
 
-    if (category) {
-      params.append('category', category);
+      if (category) {
+        params.append('category', category);
+      }
+
+      const response = await fetchWithTimeout(`${API_BASE_URL}/local/trending?${params}`);
+
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to fetch trending POIs'), { status: response.status });
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching trending POIs:', error);
+      throw error;
     }
-
-    const response = await fetch(`${API_BASE_URL}/local/trending?${params}`);
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch trending POIs');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching trending POIs:', error);
-    throw error;
-  }
+  });
 };
-
-
 /**
  * Create a new chat session
+ * ✨ ENHANCED with retry logic
  */
 export const createChatSession = async (
   userId: string,
@@ -114,117 +197,128 @@ export const createChatSession = async (
   location: { lat: number; lon: number },
   title: string = 'New Chat'
 ): Promise<ChatSession> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/chat/sessions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        city,
-        location,
-        title,
-      }),
-    });
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/chat/sessions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          city,
+          location,
+          title,
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to create chat session');
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to create chat session'), { status: response.status });
+      }
+
+      const data = await response.json();
+      return parseSession(data.session);
+    } catch (error: any) {
+      console.error('Error creating chat session:', error);
+      throw new Error(getErrorMessage(error));
     }
-
-    const data = await response.json();
-    return parseSession(data.session);
-  } catch (error) {
-    console.error('Error creating chat session:', error);
-    throw error;
-  }
+  });
 };
 /**
- * Get all chat sessions from localStorage
+ * Get all chat sessions from backend
+ * ✨ ENHANCED with retry logic
  */
 export const getChatSessions = async (userId: string): Promise<ChatSession[]> => {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/chat/sessions?user_id=${userId}&limit=50`
-    );
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/chat/sessions?user_id=${userId}&limit=50`
+      );
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch chat sessions');
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to fetch chat sessions'), { status: response.status });
+      }
+
+      const data = await response.json();
+      return data.sessions.map(parseSession);
+    } catch (error) {
+      console.error('Error fetching chat sessions:', error);
+      return []; // Return empty array on error instead of throwing
     }
-
-    const data = await response.json();
-    return data.sessions.map(parseSession);
-  } catch (error) {
-    console.error('Error fetching chat sessions:', error);
-    return [];
-  }
+  });
 };
 /**
  * Get a specific chat session
+ * ✨ ENHANCED with retry logic
  */
 export const getChatSession = async (sessionId: string): Promise<ChatSession | null> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}`);
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/chat/sessions/${sessionId}`);
 
-    if (!response.ok) {
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return parseSession(data.session);
+    } catch (error) {
+      console.error('Error fetching chat session:', error);
       return null;
     }
-
-    const data = await response.json();
-    return parseSession(data.session);
-  } catch (error) {
-    console.error('Error fetching chat session:', error);
-    return null;
-  }
+  });
 };
 /**
- * Save chat session
- */
-
-/**
  * Delete chat session
+ * ✨ ENHANCED with retry logic
  */
 export const deleteChatSession = async (sessionId: string): Promise<void> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}`, {
-      method: 'DELETE',
-    });
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/chat/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to delete session');
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to delete session'), { status: response.status });
+      }
+    } catch (error: any) {
+      console.error('Error deleting session:', error);
+      throw new Error(getErrorMessage(error));
     }
-  } catch (error) {
-    console.error('Error deleting session:', error);
-    throw error;
-  }
+  });
 };
 /**
  * Update session title based on first user message
+ * ✨ ENHANCED with retry logic
  */
 export const updateSessionTitle = async (
   sessionId: string,
   title: string
 ): Promise<void> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ title }),
-    });
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/chat/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to update session title');
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to update session title'), { status: response.status });
+      }
+    } catch (error) {
+      console.error('Error updating session title:', error);
+      throw error;
     }
-  } catch (error) {
-    console.error('Error updating session title:', error);
-    throw error;
-  }
+  });
 };
 
 /**
  * Update session context (manual location/time overrides)
+ * ✨ ENHANCED with retry logic
  */
 export const updateSessionContext = async (
   sessionId: string,
@@ -232,69 +326,74 @@ export const updateSessionContext = async (
   manualCity?: string | null,
   manualTime?: string | null
 ): Promise<void> => {
-  try {
-    const body: any = {};
-    
-    if (manualLocation !== undefined) {
-      body.manual_location = manualLocation;
-    }
-    if (manualCity !== undefined) {
-      body.manual_city = manualCity;
-    }
-    if (manualTime !== undefined) {
-      body.manual_time = manualTime;
-    }
+  return retryFetch(async () => {
+    try {
+      const body: any = {};
+      
+      if (manualLocation !== undefined) {
+        body.manual_location = manualLocation;
+      }
+      if (manualCity !== undefined) {
+        body.manual_city = manualCity;
+      }
+      if (manualTime !== undefined) {
+        body.manual_time = manualTime;
+      }
 
-    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+      const response = await fetchWithTimeout(`${API_BASE_URL}/chat/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to update session context');
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to update session context'), { status: response.status });
+      }
+      
+      console.log('✅ Session context updated');
+    } catch (error) {
+      console.error('Error updating session context:', error);
+      throw error;
     }
-    
-    console.log('✅ Session context updated');
-  } catch (error) {
-    console.error('Error updating session context:', error);
-    throw error;
-  }
+  });
 };
 /**
  * Add message to session
+ * ✨ ENHANCED with retry logic
  */
 export const addMessageToSession = async (
   sessionId: string,
   message: Message
 ): Promise<void> => {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/chat/sessions/${sessionId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          role: message.role,
-          content: message.content,
-          pois: message.pois,
-          location: message.location,
-          preferences: message.preferences,
-        }),
-      }
-    );
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/chat/sessions/${sessionId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            role: message.role,
+            content: message.content,
+            pois: message.pois,
+            location: message.location,
+            preferences: message.preferences,
+          }),
+        }
+      );
 
-    if (!response.ok) {
-      throw new Error('Failed to add message');
+      if (!response.ok) {
+        throw Object.assign(new Error('Failed to add message'), { status: response.status });
+      }
+    } catch (error) {
+      console.error('Error adding message:', error);
+      throw error;
     }
-  } catch (error) {
-    console.error('Error adding message:', error);
-    throw error;
-  }
+  });
 };
 
 const parseSession = (session: any): ChatSession => {
@@ -344,27 +443,29 @@ export const saveUserPreferences = async (
   userId: string,
   preferences: import('../types/local-discovery').UserPreferences
 ): Promise<void> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/local/preferences`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        preferences,
-      }),
-    });
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/local/preferences`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          preferences,
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to save preferences');
+      if (!response.ok) {
+        throw new Error('Failed to save preferences');
+      }
+
+      console.log('✅ Preferences saved to backend');
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+      throw error;
     }
-
-    console.log('✅ Preferences saved to backend');
-  } catch (error) {
-    console.error('Error saving preferences:', error);
-    throw error;
-  }
+  });
 };
 
 /**
@@ -373,19 +474,21 @@ export const saveUserPreferences = async (
 export const getUserPreferences = async (
   userId: string
 ): Promise<import('../types/local-discovery').UserPreferences> => {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/local/preferences?user_id=${userId}`
-    );
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/local/preferences?user_id=${userId}`
+      );
 
-    if (!response.ok) {
-      return {}; // Return empty preferences if not found
+      if (!response.ok) {
+        return {};
+      }
+
+      const data = await response.json();
+      return data.preferences || {};
+    } catch (error) {
+      console.error('Error fetching preferences:', error);
+      return {};
     }
-
-    const data = await response.json();
-    return data.preferences || {};
-  } catch (error) {
-    console.error('Error fetching preferences:', error);
-    return {};
-  }
+  });
 };

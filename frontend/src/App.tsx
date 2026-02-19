@@ -1,7 +1,9 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter , Routes, Route,Navigate } from 'react-router-dom';
 import Planner from './pages/Planner';
 import DisruptionPage from './pages/DisruptionPage'; 
 import LocalDiscovery from './pages/LocalDiscovery';
+import { ErrorBoundary } from './components/ErrorBoundary'; // ✨ NEW
+import { NetworkStatus } from './components/NetworkStatus';
 // Placeholder components (keep for future)
 const Home = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -35,16 +37,20 @@ const Safety = () => (
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/planner" element={<Planner />} />
-        <Route path="/disruption" element={<DisruptionPage />} />
-        <Route path="/local-discovery/:sessionId?" element={<LocalDiscovery />} />
-        <Route path="/local" element={<LocalDiscovery />} />
-        <Route path="/safety" element={<Safety />} />
-      </Routes>
-    </Router>
+    <ErrorBoundary> {/* ✨ NEW: Global error boundary */}
+      <BrowserRouter>
+        <NetworkStatus /> {/* ✨ NEW: Global network status */}
+        <Routes>
+          <Route path="/" element={<Navigate to="/planner" replace />} />
+          <Route path="/planner" element={<Planner />} />
+          <Route path="/disruptions" element={<DisruptionPage />} />
+          <Route path="/local-discovery" element={<LocalDiscovery />} />
+          <Route path="/local-discovery/:sessionId" element={<LocalDiscovery />} />
+          <Route path="/safety" element={<Safety />} /> {/* ✅ ADDED */}
+          <Route path="*" element={<Navigate to="/planner" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
