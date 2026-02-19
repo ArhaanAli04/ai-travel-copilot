@@ -15,7 +15,7 @@ import json
 from app.core.config import settings
 from app.ai.retrievers import create_rights_retriever
 from app.models.disruption import DisruptionCase, DisruptionType,DisruptionOption
-from langchain.schema import Document
+from langchain_core.documents import Document
 from sqlalchemy.orm import Session
 
 

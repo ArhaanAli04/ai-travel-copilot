@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
-from langchain.schema import Document
-from langchain.schema.retriever import BaseRetriever
-from langchain.callbacks.manager import CallbackManagerForRetrieverRun
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
 
 from app.core.qdrant import get_qdrant_client, get_collection_name,get_policies_collection_name
 from app.services.embedding_service import embedding_service
