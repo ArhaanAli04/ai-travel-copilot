@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     # Enable/disable alerts
     ALERTS_ENABLED: bool = True
 
+    UNSPLASH_ACCESS_KEY: str = ""
+    PHOTO_CACHE_TTL: int = 86400
+    MAX_PHOTOS_PER_POI: int = 8
+    WIKIMEDIA_TIMEOUT: int = 5
+    UNSPLASH_TIMEOUT: int = 5
+
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
