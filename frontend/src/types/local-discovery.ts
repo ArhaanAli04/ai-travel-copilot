@@ -91,3 +91,21 @@ export interface SuggestResponse {
   sources: any[];
   search_radius_km: number;
 }
+export interface POIPhoto {
+  url: string;
+  thumbnail_url: string;
+  width: number;
+  height: number;
+  source: 'wikimedia' | 'unsplash' | 'placeholder';
+  attribution: string;
+  alt_text: string;
+}
+
+export interface POIPhotosResponse {
+  poi_id: string;
+  poi_name: string;
+  photos: POIPhoto[];
+  total: number;
+  source: 'wikimedia' | 'unsplash' | 'placeholder';
+  cached: boolean;
+}

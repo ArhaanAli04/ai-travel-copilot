@@ -32,6 +32,25 @@ CATEGORY_QUERY_MAP = {
     "food_court":       "food court mall dining",
     "dessert":          "dessert sweets pastry shop",
     "ice_cream":        "ice cream shop colorful",
+    "fast_food":        "fast food restaurant burger fries",
+    "fast_food_restaurant": "fast food restaurant interior",
+    "pizza":            "pizza restaurant italian food",
+    "burger":           "burger restaurant fast food",
+    "sandwich":         "sandwich deli cafe food",
+    "chinese":          "chinese restaurant asian food interior",
+    "indian":           "indian restaurant curry spices food",
+    "italian":          "italian restaurant pasta pizza interior",
+    "mexican":          "mexican restaurant tacos food",
+    "japanese":         "japanese restaurant sushi ramen",
+    "thai":             "thai restaurant asian cuisine food",
+    "seafood":          "seafood restaurant fish ocean dining",
+    "steak":            "steakhouse restaurant meat grill",
+    "vegetarian":       "vegetarian restaurant healthy food",
+    "vegan":            "vegan restaurant plant based food",
+    "juice_bar":        "juice bar smoothie healthy drinks",
+    "tea":              "tea shop chai indian tea",
+    "food":             "restaurant food dining interior",
+    "dining":           "restaurant dining elegant food",
 
     # Shopping
     "shopping_mall":    "shopping mall interior stores",
@@ -40,6 +59,13 @@ CATEGORY_QUERY_MAP = {
     "boutique":         "boutique fashion clothing store",
     "bookstore":        "bookstore shelves cozy",
     "supermarket":      "supermarket grocery store",
+    "electronics":      "electronics store gadgets technology",
+    "clothing":         "clothing store fashion retail",
+    "jewelry":          "jewelry store luxury accessories",
+    "pharmacy":         "pharmacy medicine store health",
+    "grocery":          "grocery store supermarket fresh food",
+    "convenience":      "convenience store retail shop",
+    "department_store": "department store shopping retail",
 
     # Attractions
     "tourist_attraction": "famous tourist attraction landmark",
@@ -69,6 +95,9 @@ CATEGORY_QUERY_MAP = {
     # Wellness
     "spa":              "spa wellness relaxation",
     "salon":            "hair salon beauty",
+    "beauty":           "beauty salon cosmetics spa",
+    "laundry":          "laundry service clean",
+    "repair":           "repair shop service center",
 
     # Accommodation
     "hotel":            "hotel lobby interior luxury",

@@ -31,14 +31,39 @@ class FoursquareService:
     
     # OSM to Foursquare category mapping (IDs remain same)
     CATEGORY_MAPPING = {
-        "restaurant": "13065",
-        "cafe": "13035",
-        "bar": "13003",
-        "fast_food": "13145",
-        "attraction": "16000",
-        "park": "16032",
-        "museum": "10027",
-        "monument": "16020",
+        # Food & Drink
+        "restaurant":   "13065",
+        "cafe":         "13035",
+        "coffee":       "13035",
+        "fast_food":    "13145",
+        "bar":          "13003",
+        "pub":          "13003",
+        "bakery":       "13040",
+        "pizza":        "13064",
+        "ice_cream":    "13049",
+        "food_court":   "13145",
+        "street_food":  "13145",
+        # Attractions
+        "attraction":   "16000",
+        "museum":       "10027",
+        "monument":     "16020",
+        "park":         "16032",
+        "aquarium":     "16055",
+        "zoo":          "16056",
+        "temple":       "12090",
+        "mosque":       "12090",
+        "church":       "12090",
+        # Shopping
+        "mall":         "17069",
+        "shopping_mall":"17069",
+        "supermarket":  "17069",
+        "pharmacy":     "15014",
+        # Services
+        "hospital":     "15014",
+        "hotel":        "19014",
+        "gym":          "18008",
+        "cinema":       "10024",
+        "theater":      "10024",
     }
     
     def __init__(self):
@@ -201,11 +226,52 @@ class FoursquareService:
             logger.error(f"❌ Unexpected error for {fsq_place_id}: {e}")
             return None
         
-    
+    def _normalize_name(self, name: str) -> str:
+        """
+        Normalize place name for better fuzzy matching.
+        Handles apostrophes, accents, branch suffixes, common abbreviations.
+        """
+        import re
+        import unicodedata
+
+        # Lowercase
+        name = name.lower().strip()
+
+        # Normalize unicode (é → e, ü → u, etc.)
+        name = unicodedata.normalize("NFKD", name)
+        name = "".join(c for c in name if not unicodedata.combining(c))
+
+        # Remove apostrophes and special chars
+        name = re.sub(r"[''`]", "", name)
+
+        # Remove branch identifiers: "- Andheri", "(Bandra)", "– Fort"
+        name = re.sub(r"[-–—]\s*[a-z\s]+$", "", name)
+        name = re.sub(r"\([^)]+\)", "", name)
+
+        # Normalize common abbreviations
+        abbreviations = {
+            "mcdonalds":   "mcdonald",
+            "dominos":     "domino",
+            "kfc":         "kfc",
+            "ccd":         "cafe coffee day",
+            "bk":          "burger king",
+            "wh smith":    "wh smith",
+            "dr ":         "doctor ",
+            "st ":         "saint ",
+        }
+        for abbr, full in abbreviations.items():
+            name = name.replace(abbr, full)
+
+        # Collapse extra whitespace
+        name = re.sub(r"\s+", " ", name).strip()
+
+        return name
+
+
     def match_poi_to_foursquare(
         self,
         poi: POI,
-        max_distance: int = 50
+        max_distance: int = 250
     ) -> Optional[Dict]:
         """
         Match an OSM POI to a Foursquare place
@@ -217,58 +283,97 @@ class FoursquareService:
         Returns:
             Best matching Foursquare place dict or None
         """
-        # Get Foursquare category for POI
         fsq_category = self.CATEGORY_MAPPING.get(poi.category)
-        
-        # Search Foursquare
+        poi_name_norm = self._normalize_name(poi.name)
+
+        # ── Pass 1: 150m radius ──────────────────────────────────────
         places = self.search_places(
-            latitude=poi.location.coordinates[1],  # lat
-            longitude=poi.location.coordinates[0],  # lng
+            latitude=poi.location.coordinates[1],
+            longitude=poi.location.coordinates[0],
             query=poi.name,
             categories=fsq_category,
             radius=max_distance,
-            limit=5
+            limit=10                  # ← increased from 5 to 10
         )
-        
+
+        # ── Pass 2: 300m radius if pass 1 returns nothing ───────────
+        if not places:
+            logger.info(f"  Pass 1 empty → widening to 300m for '{poi.name}'")
+            places = self.search_places(
+                latitude=poi.location.coordinates[1],
+                longitude=poi.location.coordinates[0],
+                query=poi.name,
+                categories=None,      # ← drop category filter in wide search
+                radius=300,
+                limit=10
+            )
+
         if not places:
             return None
-        
-        # Find best match by name similarity
+
         best_match = None
         best_score = 0.0
-        
+
         for place in places:
-            place_name = place.get("name", "")
-            
-            # Calculate name similarity (0-1)
-            similarity = SequenceMatcher(None, poi.name.lower(), place_name.lower()).ratio()
-            
-            # ✅ NEW: Updated location field structure
+            place_name      = place.get("name", "")
+            place_name_norm = self._normalize_name(place_name)
+
+            # ── Name similarity (normalized) ─────────────────────────
+            from difflib import SequenceMatcher
+            similarity = SequenceMatcher(
+                None, poi_name_norm, place_name_norm
+            ).ratio()
+
+            # ── Bonus: one name contains the other ───────────────────
+            contains_bonus = 0.0
+            if poi_name_norm in place_name_norm or place_name_norm in poi_name_norm:
+                contains_bonus = 0.15
+
+            # ── Distance score ───────────────────────────────────────
             place_lat = place.get("latitude")
             place_lng = place.get("longitude")
-            
+
             if place_lat is None or place_lng is None:
                 continue
-            
+
             distance = self._calculate_distance(
                 poi.location.coordinates[1],
                 poi.location.coordinates[0],
                 place_lat,
                 place_lng
             )
-            
-            # Combined score: 70% name similarity + 30% distance (inverse)
-            distance_score = max(0, 1 - (distance / max_distance))
-            combined_score = (0.7 * similarity) + (0.3 * distance_score)
-            
-            if combined_score > best_score and combined_score > 0.6:  # Minimum 60% match
+
+            distance_score = max(0.0, 1.0 - (distance / 300))
+
+            # ── Combined score ───────────────────────────────────────
+            combined_score = (
+                0.65 * (similarity + contains_bonus) +
+                0.35 * distance_score
+            )
+
+            logger.debug(
+                f"  '{place_name}' → sim={similarity:.2f} "
+                f"dist={distance:.0f}m score={combined_score:.2f}"
+            )
+
+            # ── Threshold: lowered from 0.6 → 0.45 ──────────────────
+            if combined_score > best_score and combined_score > 0.45:
                 best_score = combined_score
                 best_match = {
                     **place,
-                    "match_confidence": combined_score,
-                    "distance_meters": distance
+                    "match_confidence":  combined_score,
+                    "distance_meters":   distance
                 }
-        
+
+        if best_match:
+            logger.info(
+                f"  ✅ Matched '{poi.name}' → '{best_match.get('name')}' "
+                f"(confidence: {best_match['match_confidence']:.2f}, "
+                f"dist: {best_match['distance_meters']:.0f}m)"
+            )
+        else:
+            logger.info(f"  ❌ No match found for '{poi.name}'")
+
         return best_match
     
     def _calculate_distance(

@@ -492,3 +492,31 @@ export const getUserPreferences = async (
     }
   });
 };
+
+/**
+ * Get photos for a POI
+ * Tries Wikimedia Commons first, falls back to Unsplash
+ */
+export const getPOIPhotos = async (
+  poiId: string
+): Promise<import('../types/local-discovery').POIPhotosResponse> => {
+  return retryFetch(async () => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/local/pois/${poiId}/photos`
+      );
+
+      if (!response.ok) {
+        throw Object.assign(
+          new Error('Failed to fetch POI photos'),
+          { status: response.status }
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching POI photos:', error);
+      throw error;
+    }
+  });
+};

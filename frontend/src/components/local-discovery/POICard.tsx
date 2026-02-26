@@ -15,9 +15,10 @@ import {
   ThumbsDown,
   ExternalLink,
   Navigation,
-  Sparkles
+  Sparkles,
+  Camera
 } from 'lucide-react';
-
+import { ImageModal } from './ImageModal';
 interface POICardProps {
   poi: POI;
   onFeedback?: (poiId: string, feedbackType: 'thumbs_up' | 'thumbs_down') => void;
@@ -25,7 +26,7 @@ interface POICardProps {
 
 export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
   const [feedbackGiven, setFeedbackGiven] = React.useState<'up' | 'down' | null>(null);
-
+  const [showPhotos, setShowPhotos]       = React.useState(false);
   const handleFeedback = (type: 'thumbs_up' | 'thumbs_down') => {
     const feedbackType = type === 'thumbs_up' ? 'up' : 'down';
     setFeedbackGiven(feedbackType);
@@ -183,14 +184,26 @@ export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
           </button>
         </div>
 
-        {/* Directions Button */}
-        <button
-          onClick={openInMaps}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#38BDF8] text-white text-sm font-medium hover:bg-[#3B82F6] transition-all shadow-lg hover:shadow-[#38BDF8]/20"
-        >
-          <Navigation className="w-4 h-4" />
-          Directions
-        </button>
+        {/* ↓ RIGHT SIDE BUTTONS — replace old Directions-only button with this ↓ */}
+        <div className="flex items-center gap-2">
+          {/* Photos Button */}
+          <button
+            onClick={() => setShowPhotos(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-[rgba(148,163,184,0.2)] text-[#9CA3AF] text-sm font-medium hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] hover:border-[#8B5CF6]/30 transition-all"
+          >
+            <Camera className="w-4 h-4" />
+            Photos
+          </button>
+
+          {/* Directions Button */}
+          <button
+            onClick={openInMaps}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#38BDF8] text-white text-sm font-medium hover:bg-[#3B82F6] transition-all shadow-lg hover:shadow-[#38BDF8]/20"
+          >
+            <Navigation className="w-4 h-4" />
+            Directions
+          </button>
+        </div>
       </div>
 
       {/* Feedback Thank You */}
@@ -200,6 +213,16 @@ export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
             ✓ Thanks for your feedback!
           </span>
         </div>
+      )}
+
+      {/* Photo Modal */}                          {/* ← ADD THIS BLOCK */}
+      {showPhotos && (
+        <ImageModal
+          poiId={poi.poi_id}
+          poiName={poi.name}
+          category={poi.category}
+          onClose={() => setShowPhotos(false)}
+        />
       )}
     </div>
   );
