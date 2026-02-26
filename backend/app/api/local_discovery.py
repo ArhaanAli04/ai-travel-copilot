@@ -14,6 +14,7 @@ from datetime import datetime,timezone
 from app.services.feedback_service import feedback_service
 from app.services.analytics_service import analytics_service
 from app.services.preferences_service import preferences_service
+from app.services.photo_service import get_poi_photos
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,26 @@ class HybridSearchResponse(BaseModel):
     context: List[dict]
     filters_applied: dict
 
+
+class POIPhoto(BaseModel):
+    """Single photo item"""
+    url:           str = Field("", description="Full resolution image URL")
+    thumbnail_url: str = Field("", description="Thumbnail image URL")
+    width:         int = Field(0,  description="Image width in pixels")
+    height:        int = Field(0,  description="Image height in pixels")
+    source:        str = Field("", description="Photo source: wikimedia | unsplash | placeholder")
+    attribution:   str = Field("", description="Attribution text for the photo")
+    alt_text:      str = Field("", description="Alt text for accessibility")
+
+
+class POIPhotosResponse(BaseModel):
+    """Response for POI photos endpoint"""
+    poi_id:   str            = Field(..., description="POI MongoDB ID")
+    poi_name: str            = Field(..., description="POI display name")
+    photos:   List[POIPhoto] = Field(..., description="List of photos")
+    total:    int            = Field(..., description="Total number of photos")
+    source:   str            = Field(..., description="Source: wikimedia | unsplash | placeholder")
+    cached:   bool           = Field(..., description="Whether result was served from cache")
 
 @router.post("/search", response_model=HybridSearchResponse)
 async def hybrid_search(request: HybridSearchRequest):
@@ -306,6 +327,49 @@ async def get_poi_details(poi_id: str):
         raise
     except Exception as e:
         logger.error(f"Error fetching POI {poi_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/pois/{poi_id}/photos", response_model=POIPhotosResponse)
+async def get_poi_photos_endpoint(poi_id: str):
+    """
+    Get photos for a POI from Wikimedia Commons (real place photos)
+    with Unsplash fallback (category-based photos).
+
+    Flow:
+    1. Fetch POI from MongoDB by ID
+    2. Try Wikimedia Commons by name + city
+    3. Fallback to Unsplash by category
+    4. Fallback to placeholder if both fail
+
+    Returns cached results on subsequent requests (24h TTL).
+
+    Example:
+        GET /local/pois/6973c6ad1a88ce574ab68798/photos
+    """
+    try:
+        # Step 1: Fetch POI from MongoDB
+        poi = await local_agent.get_poi_details(poi_id)
+
+        if not poi:
+            raise HTTPException(status_code=404, detail=f"POI {poi_id} not found")
+
+        # Step 2: Fetch photos via photo service
+        result = await get_poi_photos(poi)
+
+        # Step 3: Convert photos list to POIPhoto objects
+        return POIPhotosResponse(
+            poi_id   = result["poi_id"],
+            poi_name = result["poi_name"],
+            photos   = [POIPhoto(**p) for p in result["photos"]],
+            total    = result["total"],
+            source   = result["source"],
+            cached   = result["cached"]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching photos for POI {poi_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/feedback", response_model=POIFeedbackResponse)
