@@ -5,7 +5,8 @@ import { Hero } from '../components/Hero';
 import { TripFormV2 } from '../components/TripFormV2';
 import { TripSummaryV2 } from '../components/TripSummaryV2';
 import TripsSidebar from '../components/TripsSidebar';
-
+import { useLocation } from 'react-router-dom';
+import UnifiedSidebar from '../components/UnifiedSidebar';
 const Planner = () => {
   // Form state
   const [formData, setFormData] = useState<TripCreate>({
@@ -35,7 +36,7 @@ const Planner = () => {
   const [itineraryGenerated, setItineraryGenerated] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<number | undefined>(undefined);
   const [refreshSidebar, setRefreshSidebar] = useState(0);
-
+  const location = useLocation();
   // Sync selectedTripId with createdTrip
   useEffect(() => {
     if (createdTrip) {
@@ -43,6 +44,12 @@ const Planner = () => {
     }
   }, [createdTrip]);
 
+  useEffect(() => {
+  if (location.state?.selectTripId) {
+    handleSelectTrip(location.state.selectTripId);
+    window.history.replaceState({}, '');
+  }
+}, []);
   // Create trip
   const handleTripCreate = async (data: TripCreate) => {
     setLoading(true);
@@ -226,7 +233,7 @@ const Planner = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#05070a] to-[#0b1120]">
       {/* Trips Sidebar */}
-      <TripsSidebar
+      <UnifiedSidebar
         currentTripId={selectedTripId}
         onSelectTrip={handleSelectTrip}
         onDeleteTrip={handleDeleteTrip}

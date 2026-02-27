@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { useLocalDiscovery } from '../hooks/useLocalDiscovery';
 import { ChatSidebar } from '../components/local-discovery/ChatSidebar';
 import { ChatInterface } from '../components/local-discovery/ChatInterface';
@@ -14,7 +14,8 @@ import { ErrorBoundary } from '../components/ErrorBoundary'; // ✨ NEW
 import { NetworkStatus } from '../components/NetworkStatus'; // ✨ NEW
 import { GeolocationError } from '../components/local-discovery/GeolocationError'; // ✨ NEW
 import { ErrorState } from '../components/local-discovery/ErrorState'; // ✨ NEW
-
+import { useLocation } from 'react-router-dom';
+import UnifiedSidebar from '../components/UnifiedSidebar';
 const LocalDiscovery = () => {
   const {
     sessions,
@@ -47,6 +48,14 @@ const LocalDiscovery = () => {
   const [mapPOIs, setMapPOIs] = useState<any[]>([]);
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const routerLocation = useLocation();
+
+  useEffect(() => {
+  if (routerLocation.state?.selectSessionId) {
+    selectSession(routerLocation.state.selectSessionId);
+    window.history.replaceState({}, '');
+  }
+}, []);
 
   const handleEditChip = (chipId: string) => {
     if (chipId === 'location') {
@@ -153,8 +162,8 @@ const LocalDiscovery = () => {
               />
             </div>
           ) : (
-            <ChatSidebar
-              sessions={sessions}
+            <UnifiedSidebar
+              
               activeSessionId={activeSession?.id || null}
               onSelectSession={selectSession}
               onNewSession={createNewSession}
