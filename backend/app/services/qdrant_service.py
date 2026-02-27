@@ -2,7 +2,10 @@
 Qdrant service for Local Discovery vector operations
 Uses the existing Qdrant connection from app.core.qdrant
 """
-from qdrant_client.models import Distance, VectorParams, PointStruct, PayloadSchemaType
+from qdrant_client.models import (
+    Distance, VectorParams, PointStruct, PayloadSchemaType,
+    Filter, FieldCondition, MatchValue
+)
 from typing import List, Dict, Any, Optional
 from app.core.qdrant import get_qdrant_client, create_collection_if_not_exists
 import logging
@@ -127,17 +130,37 @@ class QdrantService:
         """
         client = get_qdrant_client()
         
-        results = client.search(
+       # Convert dict filter to Qdrant Filter object if provided
+        qdrant_filter = None
+        if query_filter:
+            # Already a Filter object — pass directly
+            if isinstance(query_filter, Filter):
+                qdrant_filter = query_filter
+            # Raw dict — convert to Filter object
+            elif isinstance(query_filter, dict):
+                conditions = []
+                for condition in query_filter.get("must", []):
+                    key   = condition.get("key")
+                    value = condition.get("match", {}).get("value")
+                    if key and value is not None:
+                        conditions.append(
+                            FieldCondition(key=key, match=MatchValue(value=value))
+                        )
+                if conditions:
+                    qdrant_filter = Filter(must=conditions)
+
+        results = client.query_points(
             collection_name=collection_name,
-            query_vector=query_vector,
+            query=query_vector,
+            query_filter=qdrant_filter,
             limit=limit,
-            query_filter=query_filter
-        )
-        
+            with_payload=True
+        ).points
+
         return [
             {
-                "id": result.id,
-                "score": result.score,
+                "id":      result.id,
+                "score":   result.score,
                 "payload": result.payload
             }
             for result in results
