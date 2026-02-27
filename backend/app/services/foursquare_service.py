@@ -226,6 +226,57 @@ class FoursquareService:
             logger.error(f"❌ Unexpected error for {fsq_place_id}: {e}")
             return None
         
+    def get_place_photos(self, fsq_place_id: str, limit: int = 8) -> list:
+        """
+        Fetch photos for a Foursquare place using the dedicated photos endpoint.
+        Returns list of photo dicts with url, thumbnail_url, width, height.
+        """
+        url = f"{self.BASE_URL}/places/{fsq_place_id}/photos"
+
+        params = {
+            "limit": limit,
+            "classifications": "outdoor,indoor"
+        }
+
+        try:
+            response = self._rate_limited_request(
+                "GET",
+                url,
+                headers=self.headers,
+                params=params,
+                timeout=10
+            )
+            response.raise_for_status()
+            photos_data = response.json()
+
+            photo_urls = []
+            for photo in photos_data:
+                if "prefix" in photo and "suffix" in photo:
+                    photo_urls.append({
+                        "url":           f"{photo['prefix']}original{photo['suffix']}",
+                        "thumbnail_url": f"{photo['prefix']}300x200{photo['suffix']}",
+                        "width":         photo.get("width", 0),
+                        "height":        photo.get("height", 0),
+                        "source":        "foursquare",
+                        "attribution":   "Photo from Foursquare",
+                        "alt_text":      "Foursquare venue photo"
+                    })
+
+            logger.info(f"  📸 Foursquare photos: {len(photo_urls)} for {fsq_place_id}")
+            return photo_urls
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                logger.warning(f"⚠️ Rate limit on photos for {fsq_place_id}, waiting 2s...")
+                time.sleep(2)
+            else:
+                logger.warning(f"⚠️ Photo fetch failed for {fsq_place_id}: {e}")
+            return []
+
+        except Exception as e:
+            logger.error(f"❌ Unexpected photo error for {fsq_place_id}: {e}")
+            return []
+
     def _normalize_name(self, name: str) -> str:
         """
         Normalize place name for better fuzzy matching.
@@ -442,6 +493,7 @@ class FoursquareService:
         
         # ✅ NEW: Updated field name
         fsq_place_id = fsq_place.get("fsq_place_id")
+        logger.info(f"  🔑 fsq_place_id raw: '{fsq_place_id}' (len={len(fsq_place_id) if fsq_place_id else 0})")
         logger.info(f"✅ Matched to Foursquare: {fsq_place.get('name')} (confidence: {fsq_place['match_confidence']:.2f})")
         
         # Get detailed place info with tips
@@ -453,10 +505,9 @@ class FoursquareService:
         
         # ✅ NEW: Extract data from new API response structure
         tips_data = place_details.get("tips", [])
-        photos_data = place_details.get("photos", [])
-        rating = place_details.get("rating")
+        rating     = place_details.get("rating")
         popularity = place_details.get("popularity")
-        
+
         # Format tips
         formatted_tips = []
         for tip in tips_data[:5]:  # Limit to 5 tips
@@ -466,12 +517,16 @@ class FoursquareService:
                 "agree_count": tip.get("agree_count", 0)
             })
         
-        # Format photos
+        # Fetch photos from dedicated endpoint
         photo_urls = []
-        for photo in photos_data[:3]:  # Limit to 3 photos
-            if "prefix" in photo and "suffix" in photo:
-                photo_url = f"{photo['prefix']}original{photo['suffix']}"
-                photo_urls.append(photo_url)
+        try:
+            logger.info(f"  🔑 Calling get_place_photos with: '{fsq_place_id}' (len={len(fsq_place_id) if fsq_place_id else 0})")
+            photos_raw = self.get_place_photos(fsq_place_id, limit=8)
+            photo_urls = [p["url"] for p in photos_raw]
+            logger.info(f"  📸 Fetched {len(photo_urls)} photos for {fsq_place_id}")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Could not fetch photos for {fsq_place_id}: {e}")
+            photo_urls = []
         
         # Create FoursquareTip object
         tip_obj = FoursquareTip(

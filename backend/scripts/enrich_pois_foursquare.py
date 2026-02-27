@@ -131,7 +131,19 @@ async def enrich_city_pois(
         logger.info("\nStep 3: Updating Qdrant with enriched descriptions...")
         
         tips_collection = db["foursquare_tips"]
-        enriched_tips = await tips_collection.find({"city": city.lower()}).to_list(length=10000)
+        # Only update Qdrant for POIs enriched in THIS run (not all historical)
+        # Get poi_ids of successfully enriched POIs this run
+        current_run_poi_ids = []
+        for poi in pois:
+            tip_doc = await tips_collection.find_one({"poi_id": str(poi.id)})
+            if tip_doc:
+                current_run_poi_ids.append(str(poi.id))
+
+        enriched_tips = await tips_collection.find(
+            {"city": city.lower(), "poi_id": {"$in": current_run_poi_ids}}
+        ).to_list(length=10000)
+
+        logger.info(f"Updating Qdrant for {len(enriched_tips)} newly enriched POIs...")
         
         updated_count = 0
         all_points = []
@@ -154,7 +166,7 @@ async def enrich_city_pois(
                 enriched_text,
                 task_type="RETRIEVAL_DOCUMENT"
             )
-            
+            await asyncio.sleep(0.7)  # 0.7s × 100 docs = 70s per 100 = safe under limit
             # Prepare point for Qdrant (update existing)
             all_points.append({
                 "id": str(poi.osm_id),  # Same ID as original OSM point

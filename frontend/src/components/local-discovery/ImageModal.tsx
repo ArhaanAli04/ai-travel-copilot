@@ -16,12 +16,12 @@ interface ImageModalProps {
 }
 
 // Source label mapping
-const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
-  wikimedia:   { label: '📷 Wikimedia Commons', color: 'text-[#22C55E]' },
-  unsplash:    { label: '🖼️ Unsplash',           color: 'text-[#38BDF8]' },
-  placeholder: { label: '🔍 No photos found',    color: 'text-[#6B7280]' },
+const SOURCE_LABELS: Record<string, { label: string; color: string; subtitle?: string }> = {
+  wikimedia:   { label: '📷 Wikimedia Commons',        color: 'text-[#22C55E]' },
+  unsplash:    { label: '🖼️ Representative photos',    color: 'text-[#38BDF8]',
+                 subtitle: 'Showing category photos for this place' },
+  placeholder: { label: '🔍 No photos found',          color: 'text-[#6B7280]' },
 };
-
 export const ImageModal: React.FC<ImageModalProps> = ({
   poiId,
   poiName,
@@ -134,11 +134,16 @@ export const ImageModal: React.FC<ImageModalProps> = ({
 
         {/* Footer — Source Label */}
         {!loading && sourceInfo && source !== 'placeholder' && (
-          <div className="px-5 pb-4 flex items-center justify-center gap-2">
+        <div className="px-5 pb-4 flex flex-col items-center gap-1">
             <span className={`text-xs font-medium ${sourceInfo.color}`}>
-              {sourceInfo.label}
+            {sourceInfo.label}
             </span>
-          </div>
+            {sourceInfo.subtitle && (
+            <span className="text-xs text-[#6B7280]">
+                {sourceInfo.subtitle}
+            </span>
+            )}
+        </div>
         )}
 
       </div>
