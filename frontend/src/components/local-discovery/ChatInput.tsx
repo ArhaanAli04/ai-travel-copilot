@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { ArrowUp, Loader2 } from 'lucide-react';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -68,12 +68,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       <button
         type="submit"
         disabled={!input.trim() || loading || disabled}
-        className="flex-shrink-0 p-3 bg-gradient-to-r from-[#F97316] to-[#38BDF8] text-white rounded-lg hover:from-[#EA580C] hover:to-[#3B82F6] disabled:from-[#6B7280] disabled:to-[#6B7280] disabled:cursor-not-allowed transition-all shadow-lg"
+        className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-white text-[#111827] hover:bg-[#E5E7EB] disabled:bg-[#374151] disabled:text-[#6B7280] disabled:cursor-not-allowed cursor-pointer transition-all shadow-md"
+        aria-label="Send message"
       >
         {loading ? (
           <Loader2 className="w-5 h-5 animate-spin" />
         ) : (
-          <Send className="w-5 h-5" />
+          <ArrowUp className="w-5 h-5" />
         )}
       </button>
     </div>

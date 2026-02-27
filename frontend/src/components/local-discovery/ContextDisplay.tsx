@@ -41,7 +41,7 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
       {/* Header - Changes based on expanded state */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-6 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+        className="w-full px-6 py-3 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
       >
         {/* Left side - only show when collapsed */}
         {!isExpanded ? (
@@ -70,7 +70,7 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
         )}
 
         {/* Toggle Button - always visible */}
-        <div className="flex items-center gap-2 text-[#9CA3AF]">
+        <div className="flex items-center gap-2 text-[#9CA3AF] ">
           {isExpanded ? (
             <ChevronUp className="w-4 h-4" />
           ) : (
@@ -127,7 +127,7 @@ export const ContextDisplay: React.FC<ContextDisplayProps> = ({
                       e.stopPropagation();
                       onOpenPreferences();
                     }}
-                    className="p-1.5 hover:bg-white/5 rounded-lg transition-colors"
+                    className="p-1.5 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
                     aria-label="Open preferences"
                   >
                     <Settings className="w-4 h-4 text-[#9CA3AF] hover:text-white transition-colors" />

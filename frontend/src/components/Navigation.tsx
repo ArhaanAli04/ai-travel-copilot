@@ -51,7 +51,7 @@ export function Navigation() {
               <button
                 key={item.name}
                 onClick={() => navigate(item.path)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                   isActive(item.path)
                     ? "text-[#38BDF8] bg-[#38BDF8]/10 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
                     : "text-[#9CA3AF] hover:text-white hover:bg-white/5"
@@ -63,7 +63,7 @@ export function Navigation() {
           </div>
 
           {/* User Avatar */}
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#3B82F6] flex items-center justify-center text-white text-sm font-semibold">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#3B82F6] flex items-center justify-center text-white text-sm font-semibold cursor-pointer">
             TC
           </div>
         </div>

@@ -5,7 +5,7 @@ import { ChatInterface } from '../components/local-discovery/ChatInterface';
 import { PreferencesPanel } from '../components/local-discovery/PreferencesPanel';
 import { QuickActions } from '../components/local-discovery/QuickActions';
 import { ContextDisplay } from '../components/local-discovery/ContextDisplay';
-import { Menu, X, Settings } from 'lucide-react';
+import { Menu, X} from 'lucide-react';
 import { MapView } from '../components/local-discovery/MapView';
 import { TimePickerModal } from '../components/local-discovery/TimePickerModal';
 import { LocationPickerModal } from '../components/local-discovery/LocationPickerModal';
@@ -124,7 +124,8 @@ const LocalDiscovery = () => {
         <NetworkStatus />
 
         {/* Navigation Bar */}
-        <Navigation />
+        <div className='ml-20'><Navigation /></div>
+        
         
         {/* Main Content */}
         <div className="flex h-[calc(100vh-64px)] overflow-hidden ml-20">
@@ -140,7 +141,7 @@ const LocalDiscovery = () => {
 
           {/* LEFT SIDE: Sidebar OR Map */}
           {showMap && activeSession ? (
-            <div className="w-2/5 h-[calc(100vh-64px)] flex-shrink-0 ml-20">
+            <div className="w-2/5 h-[calc(100vh-64px)] flex-shrink-0 ">
               <MapView
                 pois={mapPOIs}
                 userLocation={{

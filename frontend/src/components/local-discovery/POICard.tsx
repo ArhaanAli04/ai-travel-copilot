@@ -161,7 +161,7 @@ export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
           <button
             onClick={() => handleFeedback('thumbs_up')}
             disabled={feedbackGiven !== null}
-            className={`p-1.5 rounded-lg transition-all ${
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
               feedbackGiven === 'up'
                 ? 'bg-[#22C55E]/20 text-[#22C55E] border border-[#22C55E]/30'
                 : 'bg-white/5 border border-[rgba(148,163,184,0.2)] text-[#9CA3AF] hover:bg-[#22C55E]/10 hover:text-[#22C55E]'
@@ -173,7 +173,7 @@ export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
           <button
             onClick={() => handleFeedback('thumbs_down')}
             disabled={feedbackGiven !== null}
-            className={`p-1.5 rounded-lg transition-all ${
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
               feedbackGiven === 'down'
                 ? 'bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/30'
                 : 'bg-white/5 border border-[rgba(148,163,184,0.2)] text-[#9CA3AF] hover:bg-[#EF4444]/10 hover:text-[#EF4444]'
@@ -189,7 +189,7 @@ export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
           {/* Photos Button */}
           <button
             onClick={() => setShowPhotos(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-[rgba(148,163,184,0.2)] text-[#9CA3AF] text-sm font-medium hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] hover:border-[#8B5CF6]/30 transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-[rgba(148,163,184,0.2)] text-[#9CA3AF] text-sm font-medium hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] hover:border-[#8B5CF6]/30 transition-all cursor-pointer"
           >
             <Camera className="w-4 h-4" />
             Photos
@@ -198,7 +198,7 @@ export const POICard: React.FC<POICardProps> = ({ poi, onFeedback }) => {
           {/* Directions Button */}
           <button
             onClick={openInMaps}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#38BDF8] text-white text-sm font-medium hover:bg-[#3B82F6] transition-all shadow-lg hover:shadow-[#38BDF8]/20"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#38BDF8] text-white text-sm font-medium hover:bg-[#3B82F6] transition-all shadow-lg hover:shadow-[#38BDF8]/20 cursor-pointer"
           >
             <Navigation className="w-4 h-4" />
             Directions

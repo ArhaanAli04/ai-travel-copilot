@@ -56,7 +56,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {!isUser && message.pois && message.pois.length > 0 && onOpenMap && (
           <button
             onClick={() => onOpenMap(message.pois!)}
-            className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#8B5CF6] text-white text-sm font-medium rounded-lg hover:bg-[#7C3AED] transition-all shadow-lg hover:shadow-[#8B5CF6]/20"
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#8B5CF6] text-white text-sm font-medium rounded-lg hover:bg-[#7C3AED] transition-all shadow-lg hover:shadow-[#8B5CF6]/20 cursor-pointer"
           >
             <MapPin className="w-4 h-4" />
             View {message.pois.length} {message.pois.length === 1 ? 'place' : 'places'} on map

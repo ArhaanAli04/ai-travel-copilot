@@ -25,12 +25,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
 
   const renderSessionCard = (session: ChatSession) => {
   return (
@@ -89,8 +83,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   return (
     <>
       {/* Icon Sidebar - Always Visible */}
-      <div className="fixed left-0 top-16 h-[calc(100vh-64px)] w-20 bg-[#0a0e14]/95 backdrop-blur-xl border-r border-[rgba(148,163,184,0.2)] z-40">
-        <div className="h-full flex flex-col items-center pt-8 gap-8">
+      <div className="fixed left-0 top-0 h-full w-20 bg-[#0a0e14]/95 backdrop-blur-xl border-r border-[rgba(148,163,184,0.2)] z-30">
+        <div className="h-full flex flex-col items-center justify-center gap-8">
           {/* All Chats Icon */}
           <div
             className="cursor-pointer flex flex-col items-center gap-2"
@@ -125,7 +119,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       {isExpanded && (
         <div
           onMouseLeave={() => setIsExpanded(false)}
-          className="fixed left-20 top-16 h-[calc(100vh-64px)] w-64 bg-[#0a0e14]/95 backdrop-blur-xl border-r border-[rgba(148,163,184,0.2)] z-30 animate-slide-in-left"
+          className="fixed left-20 top-0 h-full w-64 bg-[#0a0e14]/95 backdrop-blur-xl border-r border-[rgba(148,163,184,0.2)] z-[99] animate-slide-in-left"
         >
           {/* Header */}
           <div className="flex items-center gap-3 p-5 border-b border-[rgba(148,163,184,0.2)]">
@@ -143,7 +137,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           </div>
 
           {/* Sessions List */}
-          <div className="overflow-y-auto flex-1 custom-scrollbar h-[calc(100vh-144px)]">
+          <div className="overflow-y-auto flex-1 custom-scrollbar h-[calc(100vh-80px)]">
             <div className="p-3 space-y-2">
               {sessions.length === 0 ? (
                 <div className="text-center py-8 px-4">
