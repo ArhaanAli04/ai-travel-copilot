@@ -6,6 +6,7 @@ import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { ReplanDayModal } from './ReplanDayModal';
 import type { ActivityExplanation } from '../services/api';
 import { EditableActivityField } from './EditableActivityField';
+import { ActivityPhotoSection } from './ActivityPhotoSection';
 
 interface ItineraryViewProps {
   trip: Trip;
@@ -377,6 +378,7 @@ const validateTitle = (title: string): string | null => {
                             </div>
                         )}
                         </div>
+                        
 
                         {/* Description */}
                         {activity.description && <p className="text-[#E5E7EB] text-sm mb-3 leading-relaxed">{activity.description}</p>}
@@ -398,6 +400,11 @@ const validateTitle = (title: string): string | null => {
                             <HelpCircle className="w-4 h-4" />
                             Why this?
                         </button>
+                        <ActivityPhotoSection    
+                          activityId={activity.id}
+                          activityTitle={activity.title}
+                          category={activity.category}
+                        />
 
                         <button
                             onClick={() =>

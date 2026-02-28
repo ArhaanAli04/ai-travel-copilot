@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Optional
 from app.core.config import settings
+from serpapi import GoogleSearch
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,23 @@ WIKIMEDIA_SUITABLE_CATEGORIES = {
     "palace", "stadium", "university", "library", "zoo",
     "aquarium", "national_park", "waterfall", "mountain"
 }
+# Cache TTL for activity photos (longer than POI cache since tourist spots rarely change)
+ACTIVITY_PHOTO_CACHE_TTL = 604800  # 7 days in seconds
+# Add this constant at the top of the file
+BLOCKED_IMAGE_DOMAINS = {
+    "lookaside.instagram.com",
+    "lookaside.fbsbx.com",
+    "scontent.instagram.com",
+    "scontent-bom1-1.xx.fbcdn.net",
+    "scontent-bom2-1.xx.fbcdn.net",
+    "static.xx.fbcdn.net",
+    "z-m-scontent.xx.fbcdn.net",
+    # Generic Facebook CDN pattern — caught by the `any(...in domain...)` check below
+    "fbcdn.net",
+    "facebook.com",
+    "pbs.twimg.com",       # Twitter/X — sometimes blocks
+    "ton.twimg.com",       # Twitter/X media
+}
 # ============================================================================
 # MAIN FUNCTION
 # ============================================================================
@@ -187,7 +205,162 @@ async def get_poi_photos(poi: dict) -> dict:
         "cached":   False
     }
 
+async def get_activity_photos(activity_title: str, location: str) -> dict:
+    """
+    Fetch photos for an itinerary activity.
+    Priority: SerpAPI Google Images → Wikimedia → Unsplash → Placeholder
+    Uses in-memory cache with 7-day TTL.
+    """
+    if not activity_title:
+        return {"photos": [], "source": "placeholder", "cached": False}
 
+    # Normalize cache key
+    cache_key = f"activity:{activity_title}:{location}".lower().strip().replace(" ", "_")
+
+    # --- Check cache ---
+    cached = _get_cached_activity_photos(cache_key)
+    if cached:
+        logger.info(f"Activity photo cache HIT: {activity_title}")
+        return {
+            "photos": cached["photos"],
+            "source": cached["source"],
+            "cached": True
+        }
+
+    logger.info(f"Activity photo cache MISS: {activity_title} | location: {location}")
+
+    photos = []
+    source = "placeholder"
+
+    # --- 1. SerpAPI Google Images ---
+    photos = await _search_serpapi_images(activity_title, location)
+    if photos:
+        source = "google_images"
+
+    # --- 2. Wikimedia fallback ---
+    if not photos:
+        logger.info(f"SerpAPI found nothing → trying Wikimedia for '{activity_title}'")
+        photos = await _search_wikimedia(activity_title, location)
+        if photos:
+            source = "wikimedia"
+
+    # --- 3. Unsplash fallback ---
+    if not photos:
+        logger.info(f"Wikimedia found nothing → trying Unsplash for '{activity_title}'")
+        photos = await _search_unsplash("tourist_attraction")
+        if photos:
+            source = "unsplash"
+
+    # --- 4. Placeholder fallback ---
+    if not photos:
+        photos = _get_placeholder("tourist_attraction", activity_title)
+        source = "placeholder"
+
+    # Cache with 7-day TTL
+    _cache_activity_photos(cache_key, photos, source)
+
+    return {
+        "photos": photos,
+        "source": source,
+        "cached": False
+    }
+
+async def _search_serpapi_images(activity_title: str, location: str) -> list:
+    """
+    Search Google Images via SerpAPI for an activity/tourist attraction.
+    Returns up to MAX_PHOTOS_PER_POI photos in the unified photo schema.
+    """
+    if not settings.SERPAPI_KEY:
+        logger.warning("SERPAPI_KEY not set — skipping SerpAPI")
+        return []
+
+    query = f"{activity_title} {location} tourist attraction"
+
+    try:
+        params = {
+            "engine": "google_images",
+            "q": query,
+            "google_domain": "google.com",
+            "hl": "en",
+            "gl": "us",
+            "num": settings.MAX_PHOTOS_PER_POI,
+            "api_key": settings.SERPAPI_KEY
+        }
+
+        # SerpAPI client is synchronous — run in thread to avoid blocking event loop
+        import asyncio
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            None,
+            lambda: GoogleSearch(params).get_dict()
+        )
+
+        images_results = results.get("images_results", [])
+
+        if not images_results:
+            logger.info(f"SerpAPI: No images found for '{query}'")
+            return []
+
+        photos = []
+        for item in images_results[:settings.MAX_PHOTOS_PER_POI]:
+            original_url = item.get("original", "")
+            thumbnail_url = item.get("thumbnail", "")
+
+            # Skip entries with no usable URL
+            if not original_url and not thumbnail_url:
+                continue
+            # Skip known hotlink-blocked domains
+            from urllib.parse import urlparse
+            domain = urlparse(original_url).netloc
+            if any(blocked in domain for blocked in BLOCKED_IMAGE_DOMAINS):
+                logger.info(f"Skipping blocked domain: {domain}")
+                continue
+            
+            photos.append({
+                "url":           original_url or thumbnail_url,
+                "thumbnail_url": thumbnail_url or original_url,
+                "width":         item.get("original_width", 0),
+                "height":        item.get("original_height", 0),
+                "source":        "google_images",
+                "attribution":   item.get("source", "Google Images"),
+                "alt_text":      item.get("title", activity_title)
+            })
+
+        logger.info(f"SerpAPI: {len(photos)} photos for '{query}'")
+        return photos
+
+    except Exception as e:
+        logger.error(f"SerpAPI error for '{query}': {e}")
+        return []
+    
+def _get_cached_activity_photos(key: str) -> Optional[dict]:
+    """
+    Get activity photos from in-memory cache if not expired (7-day TTL).
+    """
+    if key not in _photo_cache:
+        return None
+
+    entry = _photo_cache[key]
+    age = time.time() - entry["cached_at"]
+
+    if age > ACTIVITY_PHOTO_CACHE_TTL:
+        del _photo_cache[key]
+        logger.info(f"Activity photo cache EXPIRED: {key}")
+        return None
+
+    return entry
+
+
+def _cache_activity_photos(key: str, photos: list, source: str) -> None:
+    """
+    Store activity photos in in-memory cache with current timestamp.
+    """
+    _photo_cache[key] = {
+        "photos":    photos,
+        "source":    source,
+        "cached_at": time.time()
+    }
+    logger.info(f"Cached {len(photos)} activity photos for: {key} (source: {source})")
 # ============================================================================
 # WIKIMEDIA COMMONS SEARCH
 # ============================================================================

@@ -109,3 +109,22 @@ export interface POIPhotosResponse {
   source: 'wikimedia' | 'unsplash' | 'placeholder';
   cached: boolean;
 }
+
+// Separate type for activity photos (supports google_images source)
+export interface ActivityPhoto {
+  url: string;
+  thumbnail_url: string;
+  width: number;
+  height: number;
+  source: 'wikimedia' | 'unsplash' | 'placeholder' | 'google_images';
+  attribution: string;
+  alt_text: string;
+}
+
+export interface ActivityPhotosResponse {
+  activity_id: number;
+  activity_title: string;
+  photos: ActivityPhoto[];
+  source: 'wikimedia' | 'unsplash' | 'placeholder' | 'google_images';
+  cached: boolean;
+}

@@ -1,6 +1,5 @@
 import React, { useState,useEffect } from 'react';
 import { useLocalDiscovery } from '../hooks/useLocalDiscovery';
-import { ChatSidebar } from '../components/local-discovery/ChatSidebar';
 import { ChatInterface } from '../components/local-discovery/ChatInterface';
 import { PreferencesPanel } from '../components/local-discovery/PreferencesPanel';
 import { QuickActions } from '../components/local-discovery/QuickActions';

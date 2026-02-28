@@ -7,12 +7,14 @@ from app.models.trip_day import TripDay
 from app.models.activity import Activity
 from app.schemas.trip import (
     TripCreate, TripUpdate, TripResponse, TripListResponse,
-    ActivityReorderRequest, DayReplanRequest, ActivityDeleteResponse ,ActivityUpdate
+    ActivityReorderRequest, DayReplanRequest, ActivityDeleteResponse ,ActivityUpdate,
+    ActivityPhotoResponse
 )
 import logging
 from app.ai.planner_agent import create_planner_agent
 from datetime import time as time_type, datetime,timedelta
 from app.services.email_service import EmailService
+from app.services.photo_service import get_activity_photos
 from pydantic import BaseModel, EmailStr
 logger = logging.getLogger(__name__)
 
@@ -365,6 +367,59 @@ async def explain_activity_choice(
             detail=f"Failed to generate explanation: {str(e)}"
         )
 
+@router.get("/activities/{activity_id}/photos", response_model=ActivityPhotoResponse)
+async def get_activity_photos_endpoint(
+    activity_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch photos for a specific activity using Google Images (SerpAPI).
+    
+    **Priority chain:**
+    1. In-memory cache (7-day TTL) → instant response
+    2. SerpAPI Google Images → real tourist attraction photos
+    3. Wikimedia Commons fallback
+    4. Unsplash generic fallback
+    5. Placeholder if all fail
+
+    **Returns:**
+    - photos: List of photo objects with url, thumbnail_url, attribution
+    - source: Which provider returned the photos
+    - cached: Whether response came from cache
+    """
+    try:
+        activity = db.query(Activity).filter(Activity.id == activity_id).first()
+
+        if not activity:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+
+        # Build location string: prefer specific location field, fall back to address
+        location = activity.location or activity.address or ""
+
+        result = await get_activity_photos(activity.title, location)
+
+        logger.info(
+            f"📸 Photos for activity '{activity.title}': "
+            f"{len(result['photos'])} photos from {result['source']} "
+            f"(cached: {result['cached']})"
+        )
+
+        return ActivityPhotoResponse(
+            activity_id=activity_id,
+            activity_title=activity.title,
+            photos=result["photos"],
+            source=result["source"],
+            cached=result["cached"]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch photos for activity {activity_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch activity photos: {str(e)}"
+        )
 
 @router.delete("/activities/{activity_id}", response_model=ActivityDeleteResponse)
 async def delete_activity(

@@ -4,7 +4,6 @@ import { Navigation } from '../components/Navigation';
 import { Hero } from '../components/Hero';
 import { TripFormV2 } from '../components/TripFormV2';
 import { TripSummaryV2 } from '../components/TripSummaryV2';
-import TripsSidebar from '../components/TripsSidebar';
 import { useLocation } from 'react-router-dom';
 import UnifiedSidebar from '../components/UnifiedSidebar';
 const Planner = () => {

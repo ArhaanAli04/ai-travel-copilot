@@ -7,6 +7,7 @@ import type {
   DraftMessage,
   GenerateMessageRequest,
 } from '../types/disruption';
+import type { ActivityPhoto } from '../types/local-discovery';
 
 const draftGenerationCache = new Map<number, Promise<{ drafts: DraftMessage[] }>>();
 // Base API URL (update if your backend runs on different port)
@@ -334,6 +335,15 @@ export const activityApi = {
     );
     return response.data;
   },
+};
+
+// Activity Photos
+export const activityPhotosApi = {
+  getPhotos: async (activityId: number): Promise<{ photos: ActivityPhoto[]; source: string; cached: boolean }> => {
+    const response = await fetch(`${API_BASE_URL}/trips/activities/${activityId}/photos`);
+    if (!response.ok) throw new Error('Failed to fetch activity photos');
+    return response.json();
+  }
 };
 
 // Day re-planning API

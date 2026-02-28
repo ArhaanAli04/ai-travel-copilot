@@ -106,6 +106,17 @@ class DayReplanRequest(BaseModel):
             }
         }
 
+class ActivityPhotoResponse(BaseModel):
+    """Response for activity photos"""
+    activity_id: int
+    activity_title: str
+    photos: List[dict]
+    source: str
+    cached: bool
+
+    class Config:
+        from_attributes = True
+
 
 # NEW: Response for activity deletion
 class ActivityDeleteResponse(BaseModel):
