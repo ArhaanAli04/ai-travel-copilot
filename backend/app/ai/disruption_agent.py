@@ -17,7 +17,8 @@ from app.ai.retrievers import create_rights_retriever
 from app.models.disruption import DisruptionCase, DisruptionType,DisruptionOption
 from langchain_core.documents import Document
 from sqlalchemy.orm import Session
-
+from app.services import disruption_mongo_service
+from app.utils.region_mapper import get_region_from_country
 
 logger = logging.getLogger(__name__)
 
@@ -50,51 +51,79 @@ class DisruptionAgent:
     ) -> Dict:
         """
         Explain passenger rights for a disruption case
-        
+
+        3-Layer lookup:
+        Layer 1: MongoDB exact match (region + disruption_type) → instant, no Gemini
+        Layer 2: Qdrant RAG retriever (existing policy docs)
+        Layer 3: Gemini synthesis → result saved back to MongoDB for future use
+
         Args:
             disruption_case: The disruption case
             airline_code: Optional airline IATA code
             booking_class: Optional booking class (economy, business, etc.)
             insurance_provider: Optional insurance provider name
-            
+
         Returns:
             Dict with:
             - summary: Plain-language explanation
             - rights_bullets: Actionable bullet points
             - compensation_amount: Estimated compensation
             - source_links: Citations
-            - cached: Whether data was cached
+            - cached: Whether data was served from MongoDB cache
         """
         logger.info(f"🤖 Explaining rights for case {disruption_case.id}")
-        
+
         try:
             # 1. Extract route information
             origin_country = self._extract_country_from_airport_or_city(disruption_case.origin)
             destination_country = self._extract_country_from_airport_or_city(disruption_case.destination)
-            
+
             logger.info(f"📍 Route: {disruption_case.origin} ({origin_country}) → {disruption_case.destination} ({destination_country})")
-            # 2. Retrieve relevant policies using RightsRetriever
+
+            # ✅ PHASE 5 — Layer 1: Map country code → regulation region
+            region = get_region_from_country(origin_country)
+            disruption_type_str = disruption_case.disruption_type.value
+
+            logger.info(f"🗺️ Region mapped: {origin_country} → {region}")
+
+            # ✅ PHASE 5 — Layer 1: MongoDB exact-match lookup
+            cached_rights = await disruption_mongo_service.get_rights(region, disruption_type_str)
+
+            if cached_rights:
+                logger.info(
+                    f"⚡ MongoDB cache HIT — returning instantly "
+                    f"(region={region}, type={disruption_type_str}), no Gemini call"
+                )
+                # cached_rights already matches ExplainRightsResponse shape exactly
+                return cached_rights
+
+            logger.info(
+                f"💨 MongoDB cache MISS — falling through to Qdrant + Gemini "
+                f"(region={region}, type={disruption_type_str})"
+            )
+
+            # ✅ PHASE 5 — Layer 2: Qdrant retriever (existing logic, unchanged)
             retriever = create_rights_retriever(
                 airline=disruption_case.airline,
                 origin_country=origin_country,
                 destination_country=destination_country,
-                disruption_type=disruption_case.disruption_type.value,
+                disruption_type=disruption_type_str,
                 provider_type="airline",
                 k=5,
                 use_cache=True
             )
-            
+
             # Query for rights
             query = self._build_rights_query(disruption_case)
             policy_docs = await retriever._aget_relevant_documents(query)
-            
+
             cached = len(policy_docs) > 0
-            
+
             # 3. Get flight metadata for context
             flight_status = disruption_case.meta_data.get("flight_status", {}) if disruption_case.meta_data else {}
             delay_minutes = self._extract_delay_minutes(flight_status, disruption_case)
-            
-            # 4. Synthesize explanation using Gemini
+
+            # ✅ PHASE 5 — Layer 3: Gemini synthesis (existing logic, unchanged)
             explanation = await self._synthesize_explanation(
                 disruption_case=disruption_case,
                 policy_docs=policy_docs,
@@ -103,10 +132,10 @@ class DisruptionAgent:
                 delay_minutes=delay_minutes,
                 booking_class=booking_class
             )
-            
+
             # 5. Extract source links
             source_links = self._extract_sources(policy_docs)
-            
+
             result = {
                 "summary": explanation.get("summary", ""),
                 "rights_bullets": explanation.get("rights_bullets", []),
@@ -115,14 +144,25 @@ class DisruptionAgent:
                 "next_steps": explanation.get("next_steps", []),
                 "source_links": source_links,
                 "cached": cached,
-                "region": origin_country,
+                "region": region,  # ✅ PHASE 5 — use mapped region, not raw country code
                 "applicable_regulation": explanation.get("applicable_regulation", ""),
                 "generated_at": datetime.now(timezone.utc).isoformat()
             }
-            
+
+            # ✅ PHASE 5 — Save Gemini result to MongoDB so next request hits cache
+            # Fire-and-forget: don't await failure, never block the user response
+            try:
+                await disruption_mongo_service.save_rights(region, disruption_type_str, result)
+                logger.info(
+                    f"💾 Saved Gemini result to MongoDB cache "
+                    f"(region={region}, type={disruption_type_str})"
+                )
+            except Exception as save_err:
+                logger.warning(f"⚠️ Failed to cache rights to MongoDB (non-critical): {save_err}")
+
             logger.info(f"✅ Generated rights explanation for case {disruption_case.id}")
             return result
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to explain rights: {e}")
             return {
@@ -1055,11 +1095,17 @@ NEXT_STEPS:
         """
         Get regulatory enforcement body for region
         """
+        # ✅ PHASE 5 — expanded to cover all regions in region_mapper
         bodies = {
-            "EU": "Civil Aviation Authority (CAA) or national enforcement body",
-            "UK": "UK Civil Aviation Authority (CAA)",
-            "US": "U.S. Department of Transportation (DOT)",
-            "GB": "UK Civil Aviation Authority (CAA)"
+            "EU": "National Enforcement Body (e.g., CAA in UK, Luftfahrt-Bundesamt in DE)",
+            "UK": "UK Civil Aviation Authority (CAA) — caa.co.uk",
+            "US": "U.S. Department of Transportation (DOT) — transportation.gov",
+            "IN": "Directorate General of Civil Aviation (DGCA) — dgca.gov.in",
+            "CA": "Canadian Transportation Agency (CTA) — otc-cta.gc.ca",
+            "AU": "Airline Customer Advocate — airlinecustomeradvocate.com.au",
+            "AE": "General Civil Aviation Authority (GCAA) — gcaa.gov.ae",
+            "GB": "UK Civil Aviation Authority (CAA) — caa.co.uk",  # legacy key
+            "GENERAL": "National civil aviation authority of your departure country"
         }
         
         return bodies.get(region, "relevant aviation authority")
