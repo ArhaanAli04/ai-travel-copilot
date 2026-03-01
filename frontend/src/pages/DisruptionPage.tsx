@@ -23,13 +23,18 @@ const DisruptionPage: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const state = location.state as { selectCaseId?: number } | null;
+    const state = location.state as { selectCaseId?: number;newCase?: boolean  } | null;
     if (state?.selectCaseId) {
       loadCase(state.selectCaseId);
       setShowDashboard(true);
       // Clear state so back-navigation doesn't reload the same case
       navigate('/disruptions', { replace: true, state: {} });
-    }
+    }else if (state?.newCase) {
+    // Reset to form view
+    setShowDashboard(false);
+    setDisruptionData(null);
+    navigate('/disruptions', { replace: true, state: {} });
+  }
   }, [location.state]);
 
   const loadCase = async (id: number) => {

@@ -47,8 +47,16 @@ const Planner = () => {
   if (location.state?.selectTripId) {
     handleSelectTrip(location.state.selectTripId);
     window.history.replaceState({}, '');
+  }else if (location.state?.newTrip) {
+    // Reset to form view
+    setCreatedTrip(null);
+    setSelectedTripId(undefined);
+    setOriginCode('');
+    setDestinationCodes(['']);
+    setItineraryGenerated(false);
+    window.history.replaceState({}, '');
   }
-}, []);
+}, [location.state]);
   // Create trip
   const handleTripCreate = async (data: TripCreate) => {
     setLoading(true);

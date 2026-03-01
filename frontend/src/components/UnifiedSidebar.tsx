@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Plane, Star, Calendar, MapPin, Trash2,
-  ChevronRight, RefreshCw, MessageSquare, Plus, Clock, AlertTriangle
+  ChevronRight, MessageSquare, Plus, Clock, AlertTriangle
 } from 'lucide-react';
 import { tripApi,disruptionApi, type Trip } from '../services/api';
 import { type ChatSession } from '../types/local-discovery';
@@ -330,7 +330,7 @@ const UnifiedSidebar = ({
             <ChevronRight className="w-4 h-4 text-[#F97316]" />
           </div>
         )}
-        
+
         {/* ✅ Delete button — shows on hover, top-right like session cards */}
         <button
           onClick={(e) => handleDeleteCase(c.id, e)}
@@ -484,15 +484,48 @@ const UnifiedSidebar = ({
                     {cases.length} {cases.length === 1 ? 'case' : 'cases'}
                   </p>
                 )}
-
               </div>
+              {/* ✅ Replaced refresh with contextual + button */}
               {(activeView === 'all' || activeView === 'favorites') && (
                 <button
-                  onClick={fetchTrips}
-                  className="p-1.5 rounded-lg hover:bg-[#1F2937]/50 transition-colors"
-                  title="Refresh trips"
+                  onClick={() => {
+                    setActiveView(null);
+                    navigate('/planner', { state: { newTrip: true } });
+                  }}
+                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors"
+                  title="Create new trip"
                 >
-                  <RefreshCw className={`w-4 h-4 text-[#9CA3AF] ${loading ? 'animate-spin' : ''}`} />
+                  <Plus className="w-5 h-5 text-[#38BDF8]" />
+                </button>
+              )}
+
+              {activeView === 'chats' && (
+                <button
+                  onClick={() => {
+                    setActiveView(null);
+                    if (isDiscovery) {
+                      if (onNewSession) onNewSession();
+                    } else {
+                      navigate('/local-discovery', { state: { newSession: true } });
+                    }
+                  }}
+                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors"
+                  title="Start a new chat"
+                >
+                  <Plus className="w-5 h-5 text-[#38BDF8]" />
+                </button>
+              )}
+
+              {activeView === 'cases' && (
+                <button
+                  onClick={() => {
+                    setActiveView(null);
+                    navigate('/disruptions', { state: { newCase: true } });
+                  }}
+                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors"
+                  title="Create a new disruption case"
+                >
+                  <Plus className="w-5 h-5 text-[#F97316]" />
                 </button>
               )}
             </div>
