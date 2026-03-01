@@ -665,6 +665,11 @@ NEXT_STEPS:
         """
         Generate professional email/message for disruption resolution
         
+        
+        Template lookup order:
+        1. MongoDB draft_message_templates (exact match by recipient/type/tone)
+        2. Python dict in message_templates.py (fallback)
+        3. Gemini AI generation (fallback if template variable filling fails)
         Args:
             disruption_case: The disruption case
             disruption_option: Optional specific option this message relates to
@@ -683,7 +688,7 @@ NEXT_STEPS:
             from app.models.draft_message import DraftMessage, MessageRecipientType, MessageTone
             import json
             
-            # ✅ ADD THIS BLOCK - Deduplication check
+            #  Deduplication check
             if db:
                 
                 # Check for duplicate drafts created in last 5 minutes
@@ -692,8 +697,8 @@ NEXT_STEPS:
                 try:
                     existing_draft = db.query(DraftMessage).filter(
                         DraftMessage.disruption_case_id == disruption_case.id,
-                        DraftMessage.recipient_type == MessageRecipientType(recipient_type.upper()),
-                        DraftMessage.tone == MessageTone(tone.upper()),
+                        DraftMessage.recipient_type == MessageRecipientType(recipient_type.lower()),
+                        DraftMessage.tone == MessageTone(tone.lower()),
                         DraftMessage.created_at >= five_minutes_ago
                     ).first()
                     
@@ -722,8 +727,25 @@ NEXT_STEPS:
             # 1. Determine message type based on option or disruption
             message_type = self._determine_message_type(disruption_option, disruption_case)
             
-            # 2. Get base template
-            template = get_template(recipient_type, message_type, tone)
+             # ✅ PHASE 6 — Step 2: MongoDB template lookup first, Python dict as fallback
+            mongo_template = await disruption_mongo_service.get_draft_template(
+                recipient_type, message_type, tone
+            )
+
+            if mongo_template:
+                logger.info(
+                    f"⚡ MongoDB template HIT: "
+                    f"{recipient_type}/{message_type}/{tone} — no Gemini needed"
+                )
+                template = mongo_template["body_template"]
+                mongo_subject = mongo_template.get("subject_template")
+            else:
+                logger.info(
+                    f"💨 MongoDB template MISS: "
+                    f"{recipient_type}/{message_type}/{tone} — falling back to Python dict"
+                )
+                template = get_template(recipient_type, message_type, tone)
+                mongo_subject = None
             
             # 3. Get rights explanation for context
             rights_explanation = await self.explain_rights(disruption_case)
@@ -747,10 +769,24 @@ NEXT_STEPS:
                     disruption_case, disruption_option, recipient_type, tone, template_vars
                 )
             
-            # 6. Generate subject line
-            subject = self._generate_subject_line(
-                disruption_case, message_type, recipient_type, tone
-            )
+            # ✅ PHASE 6 — Step 6: Subject from MongoDB if available, else generate
+            if mongo_subject:
+                try:
+                    subject = mongo_subject.format(
+                        flight_number=disruption_case.flight_number,
+                        airline_name=disruption_case.airline,
+                        origin=disruption_case.origin,
+                        destination=disruption_case.destination,
+                    )
+                    logger.info(f"⚡ Using MongoDB subject template: {subject}")
+                except KeyError:
+                    subject = self._generate_subject_line(
+                        disruption_case, message_type, recipient_type, tone
+                    )
+            else:
+                subject = self._generate_subject_line(
+                    disruption_case, message_type, recipient_type, tone
+                )
             
             # 7. Determine recipient email
             recipient_email = self._get_recipient_email(
@@ -758,10 +794,18 @@ NEXT_STEPS:
             )
             
             # 8. List required attachments
-            attachments_needed = self._get_required_attachments(recipient_type, message_type)
+            # ✅ PHASE 6 — prefer MongoDB attachments_needed if available
+            if mongo_template and mongo_template.get("attachments_needed"):
+                attachments_needed = mongo_template["attachments_needed"]
+            else:
+                attachments_needed = self._get_required_attachments(recipient_type, message_type)
             
-            # 9. Generate next steps
-            next_steps = self._generate_next_steps(recipient_type, message_type)
+            # ✅ PHASE 6 — 9.prefer MongoDB next_steps if available
+            if mongo_template and mongo_template.get("next_steps"):
+                next_steps = mongo_template["next_steps"]
+            else:
+                next_steps = self._generate_next_steps(recipient_type, message_type)
+
             
             # 10. Save to database if db session provided
             draft_message = None
