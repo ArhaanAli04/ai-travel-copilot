@@ -123,7 +123,7 @@ const FlightSection = ({ trip }: FlightSectionProps) => {
                   {/* Remove Button */}
                   <button
                     onClick={() => openDeleteModal(flight.id!)}
-                    className="p-1.5 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/20 transition-all"
+                    className="p-1.5 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/20 transition-all cursor-pointer"
                     title="Remove flight"
                   >
                     <X className="w-4 h-4" />
@@ -226,7 +226,7 @@ const FlightSection = ({ trip }: FlightSectionProps) => {
       {!showFlightSearch ? (
         <button
           onClick={() => setShowSearchModal(true)} // ✅ Open modal
-          className="px-6 py-3 rounded-xl font-bold text-white bg-[#38BDF8] hover:bg-[#0EA5E9] hover:scale-105 active:scale-95 transition-all"
+          className="px-6 py-3 rounded-xl font-bold text-white bg-[#38BDF8] hover:bg-[#0EA5E9] hover:scale-105 active:scale-95 transition-all cursor-pointer"
         >
           <span className="flex items-center gap-2">
             <Search className="w-5 h-5" />

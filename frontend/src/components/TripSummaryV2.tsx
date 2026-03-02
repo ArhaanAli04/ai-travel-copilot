@@ -274,7 +274,7 @@ const handleRegenerateItinerary = async () => {
             {/* Edit Button */}
             <button
               onClick={() => setShowEditModal(true)}
-              className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-[rgba(148,163,184,0.2)] hover:border-[#60A5FA]/50 transition-all group"
+              className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-[rgba(148,163,184,0.2)] hover:border-[#60A5FA]/50 transition-all group cursor-pointer"
               title="Edit Trip"
             >
               <Edit2 className="w-4 h-4 text-gray-400 group-hover:text-[#60A5FA] transition-colors" />
@@ -283,7 +283,7 @@ const handleRegenerateItinerary = async () => {
             {/* Delete Button */}
             <button
               onClick={() => setShowDeleteModal(true)}
-              className="p-2.5 rounded-lg bg-white/5 hover:bg-[#EF4444]/10 border border-[rgba(148,163,184,0.2)] hover:border-[#EF4444]/50 transition-all group"
+              className="p-2.5 rounded-lg bg-white/5 hover:bg-[#EF4444]/10 border border-[rgba(148,163,184,0.2)] hover:border-[#EF4444]/50 transition-all group cursor-pointer"
               title="Delete Trip"
             >
               <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-[#EF4444] transition-colors" />
@@ -376,7 +376,7 @@ const handleRegenerateItinerary = async () => {
         <button
           onClick={onRefreshTrip}
           disabled={loading}
-          className={`flex-1 h-12 border border-[rgba(148,163,184,0.2)] text-white rounded-xl bg-transparent transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 h-12 border border-[rgba(148,163,184,0.2)] text-white rounded-xl bg-transparent transition-all flex items-center justify-center gap-2 cursor-pointer ${
             loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/5'
           }`}
         >
@@ -385,7 +385,7 @@ const handleRegenerateItinerary = async () => {
         </button>
         <button
           onClick={onCreateAnother}
-          className="flex-1 h-12 border border-[#38BDF8] text-[#38BDF8] hover:bg-[#38BDF8]/10 rounded-xl bg-transparent transition-all flex items-center justify-center gap-2"
+          className="flex-1 h-12 border border-[#38BDF8] text-[#38BDF8] hover:bg-[#38BDF8]/10 rounded-xl bg-transparent transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Create Another Trip

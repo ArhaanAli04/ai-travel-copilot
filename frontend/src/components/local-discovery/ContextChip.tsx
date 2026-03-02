@@ -90,7 +90,7 @@ export const ContextChip: React.FC<ContextChipProps> = ({ chip, onRemove, onEdit
       {canEdit && (
         <button
           onClick={() => onEdit(chip.id)}
-          className={`ml-1 ${getHoverStyles()} rounded-full p-0.5 transition-colors`}
+          className={`ml-1 ${getHoverStyles()} cursor-pointer rounded-full p-0.5 transition-colors`}
           aria-label={`Edit ${chip.label}`}
         >
           <Edit2 className="w-3 h-3" />

@@ -76,7 +76,7 @@ export const PreferencesPanel: React.FC<PreferencesPanelProps> = ({
         </div>
         <button
           onClick={onClose}
-          className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+          className="p-2 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
           aria-label="Close"
         >
           <X className="w-5 h-5 text-[#9CA3AF]" />
@@ -146,7 +146,7 @@ export const PreferencesPanel: React.FC<PreferencesPanelProps> = ({
                 key={cuisine}
                 type="button"
                 onClick={() => toggleCuisine(cuisine)}
-                className={`px-4 py-2 text-sm rounded-full transition-all hover:scale-105 ${
+                className={`px-4 py-2 text-sm rounded-full transition-all hover:scale-105 cursor-pointer ${
                   preferences.cuisines?.includes(cuisine)
                     ? 'bg-[#38BDF8] text-white border border-[#38BDF8]'
                     : 'border border-[rgba(148,163,184,0.2)] text-[#9CA3AF] hover:bg-white/5'
@@ -173,7 +173,7 @@ export const PreferencesPanel: React.FC<PreferencesPanelProps> = ({
                 key={category}
                 type="button"
                 onClick={() => toggleCategory(category)}
-                className={`px-4 py-2 text-sm rounded-full transition-all hover:scale-105 capitalize ${
+                className={`px-4 py-2 text-sm rounded-full transition-all hover:scale-105 capitalize cursor-pointer ${
                   preferences.categories?.includes(category)
                     ? 'bg-[#F97316] text-white border border-[#F97316]'
                     : 'border border-[rgba(148,163,184,0.2)] text-[#9CA3AF] hover:bg-white/5'

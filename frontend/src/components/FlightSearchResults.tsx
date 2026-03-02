@@ -121,7 +121,7 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
       <button
         onClick={() => onSelectFlight(flight)}
         disabled={loading}
-        className={`w-full py-4 rounded-2xl font-bold transition-all ${
+        className={`w-full py-4 rounded-2xl font-bold transition-all cursor-pointer ${
           loading
             ? 'bg-[#1F2937] text-white/50 border-2 border-[#6B7280]/30 cursor-not-allowed'
             : 'bg-transparent text-white border-2 border-[#38BDF8] hover:bg-[#38BDF8] hover:shadow-lg hover:shadow-[#38BDF8]/50 hover:scale-[1.02] active:scale-95'
@@ -161,7 +161,7 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-[#6B7280] hover:bg-[#4B5563] text-white font-semibold transition-all flex items-center gap-2"
+            className="px-4 py-2 rounded-xl bg-[#6B7280] hover:bg-[#4B5563] text-white font-semibold transition-all flex items-center gap-2 cursor-pointer"
           >
             Close
             <X className="w-4 h-4" />

@@ -293,7 +293,7 @@ const validateTitle = (title: string): string | null => {
                         loading: false,
                     })
                     }
-                    className="px-4 py-2 rounded-lg bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 transition-all text-sm font-medium flex items-center gap-2"
+                    className="px-4 py-2 rounded-lg bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 transition-all text-sm font-medium flex items-center gap-2 cursor-pointer"
                 >
                     <Sparkles className="w-4 h-4" />
                     Re-plan This Day
@@ -395,7 +395,7 @@ const validateTitle = (title: string): string | null => {
                         <div className="flex items-center gap-2 pt-3 border-t border-[rgba(148,163,184,0.1)]">
                         <button
                             onClick={() => handleExplainActivity(activity.id, activity.title)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#60A5FA]/10 border border-[#60A5FA]/30 text-[#60A5FA] hover:bg-[#60A5FA]/20 transition-all text-sm font-medium"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#60A5FA]/10 border border-[#60A5FA]/30 text-[#60A5FA] hover:bg-[#60A5FA]/20 transition-all text-sm font-medium cursor-pointer"
                         >
                             <HelpCircle className="w-4 h-4" />
                             Why this?
@@ -415,7 +415,7 @@ const validateTitle = (title: string): string | null => {
                                 loading: false,
                             })
                             }
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/20 transition-all text-sm font-medium"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/20 transition-all text-sm font-medium cursor-pointer"
                         >
                             <Trash2 className="w-4 h-4" />
                             Delete

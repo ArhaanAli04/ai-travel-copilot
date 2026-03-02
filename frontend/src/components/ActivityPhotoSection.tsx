@@ -19,7 +19,7 @@ export const ActivityPhotoSection: React.FC<ActivityPhotoSectionProps> = ({
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B] hover:bg-[#F59E0B]/20 transition-all text-sm font-medium"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B] hover:bg-[#F59E0B]/20 transition-all text-sm font-medium cursor-pointer"
       >
         <Images className="w-4 h-4" />
         View Photos

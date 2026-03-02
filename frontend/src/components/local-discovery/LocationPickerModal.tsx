@@ -112,7 +112,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-white/5 rounded-lg transition-colors"
+            className="p-1 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5 text-[#9CA3AF]" />
           </button>
@@ -140,7 +140,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
           {/* Use Current Location Button */}
           <button
             onClick={handleUseCurrentLocation}
-            className="absolute top-4 right-4 z-[1000] bg-[#1F2937] border border-[rgba(148,163,184,0.2)] px-4 py-2 rounded-lg shadow-lg hover:bg-[#1F2937]/80 transition-all flex items-center gap-2"
+            className="absolute top-4 right-4 z-[1000] bg-[#1F2937] border border-[rgba(148,163,184,0.2)] px-4 py-2 rounded-lg shadow-lg hover:bg-[#1F2937]/80 transition-all flex items-center gap-2 cursor-pointer"
           >
             <Navigation className="w-4 h-4 text-[#8B5CF6]" />
             <span className="text-sm font-medium text-white">Use My Location</span>
@@ -169,14 +169,14 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         <div className="flex gap-3 px-6 py-4 border-t border-[rgba(148,163,184,0.2)] bg-[#0a0e14]/50">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white rounded-lg hover:bg-[#1F2937]/70 transition-colors"
+            className="flex-1 px-4 py-2 bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white rounded-lg hover:bg-[#1F2937]/70 transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={isLoadingCity}
-            className="flex-1 px-4 py-2 bg-[#8B5CF6] text-white rounded-lg hover:bg-[#7C3AED] transition-colors shadow-lg hover:shadow-[#8B5CF6]/20"
+            className="flex-1 px-4 py-2 bg-[#8B5CF6] text-white rounded-lg hover:bg-[#7C3AED] transition-colors shadow-lg hover:shadow-[#8B5CF6]/20 cursor-pointer"
           >
             Confirm Location
           </button>

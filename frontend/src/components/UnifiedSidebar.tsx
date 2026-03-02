@@ -430,19 +430,7 @@ const UnifiedSidebar = ({
             <p className="text-xs font-semibold text-[#9CA3AF]">Cases</p>
           </div>
 
-          {/* New Chat */}
-          <div
-            className="cursor-pointer flex flex-col items-center gap-2"
-            onClick={() => {
-              if (!isDiscovery) navigate('/local-discovery');
-              if (onNewSession) onNewSession();
-            }}
-          >
-            <div className="w-12 h-12 rounded-xl bg-[#22C55E]/10 flex items-center justify-center hover:bg-[#22C55E]/20 transition-all">
-              <Plus className="w-7 h-7 text-[#22C55E]" />
-            </div>
-            <p className="text-xs font-semibold text-[#9CA3AF]">New</p>
-          </div>
+          
 
         </div>
       </div>
@@ -492,7 +480,7 @@ const UnifiedSidebar = ({
                     setActiveView(null);
                     navigate('/planner', { state: { newTrip: true } });
                   }}
-                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors cursor-pointer"
                   title="Create new trip"
                 >
                   <Plus className="w-5 h-5 text-[#38BDF8]" />
@@ -509,7 +497,7 @@ const UnifiedSidebar = ({
                       navigate('/local-discovery', { state: { newSession: true } });
                     }
                   }}
-                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors cursor-pointer"
                   title="Start a new chat"
                 >
                   <Plus className="w-5 h-5 text-[#38BDF8]" />
@@ -522,7 +510,7 @@ const UnifiedSidebar = ({
                     setActiveView(null);
                     navigate('/disruptions', { state: { newCase: true } });
                   }}
-                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-full bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 flex items-center justify-center transition-colors cursor-pointer"
                   title="Create a new disruption case"
                 >
                   <Plus className="w-5 h-5 text-[#F97316]" />

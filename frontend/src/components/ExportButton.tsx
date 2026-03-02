@@ -30,7 +30,7 @@ const ExportButton = ({ trip, onEmailClick }: ExportButtonProps) => {
       <button
         onClick={handleDownloadPDF}
         disabled={downloading}
-        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
+        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all cursor-pointer ${
           downloading
             ? 'bg-[#6B7280] cursor-not-allowed text-white/50'
             : 'bg-[#38BDF8] text-white hover:bg-[#0EA5E9] hover:scale-105 active:scale-95'
@@ -53,7 +53,7 @@ const ExportButton = ({ trip, onEmailClick }: ExportButtonProps) => {
       {/* Email Button (Optional) */}
       <button
         onClick={onEmailClick}
-        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-[#10B981] hover:bg-[#059669] hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[#10B981]/20"
+        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-[#10B981] hover:bg-[#059669] hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[#10B981]/20 cursor-pointer"
         title="Email itinerary"
       >
         <Mail className="w-5 h-5" />
