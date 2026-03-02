@@ -512,6 +512,23 @@ export const disruptionApi = {
   deleteCase: async (caseId: number): Promise<void> => {
     await api.delete(`/disruptions/${caseId}`);
   },
+
+   // Get saved options (no regeneration — fast)
+  getOptions: async (caseId: number): Promise<DisruptionOption[]> => {
+    const response = await api.get(`/disruptions/${caseId}/options`);
+    return response.data;
+  },
+
+  // Search alternative flights for a specific date
+  searchFlights: async (caseId: number, date?: string): Promise<{
+    options: DisruptionOption[];
+    total_options: number;
+    generated_at: string;
+  }> => {
+    const params = date ? { search_date: date } : {};
+    const response = await api.post(`/disruptions/${caseId}/search-flights`, {}, { params });
+    return response.data;
+  },
 };
 
 export default api;

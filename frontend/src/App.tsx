@@ -44,6 +44,7 @@ function App() {
           <Route path="/" element={<Navigate to="/planner" replace />} />
           <Route path="/planner" element={<Planner />} />
           <Route path="/disruptions" element={<DisruptionPage />} />
+          <Route path="/disruptions/:id" element={<DisruptionPage />} />
           <Route path="/local-discovery" element={<LocalDiscovery />} />
           <Route path="/local-discovery/:sessionId" element={<LocalDiscovery />} />
           <Route path="/safety" element={<Safety />} /> {/* ✅ ADDED */}

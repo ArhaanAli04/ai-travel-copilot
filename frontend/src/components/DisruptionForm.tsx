@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { disruptionApi, airportApi } from '../services/api';
 import type { CreateDisruptionRequest } from '../types/disruption';
-import type { AirportSuggestion } from '../services/api';
 
 interface DisruptionFormProps {
   onSuccess: (caseId: number) => void;
@@ -11,13 +10,7 @@ export const DisruptionForm: React.FC<DisruptionFormProps> = ({ onSuccess }) => 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Airport autocomplete state
-  const [originSearch, setOriginSearch] = useState('');
-  const [destinationSearch, setDestinationSearch] = useState('');
-  const [originSuggestions, setOriginSuggestions] = useState<AirportSuggestion[]>([]);
-  const [destinationSuggestions, setDestinationSuggestions] = useState<AirportSuggestion[]>([]);
-  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
-  const [showDestDropdown, setShowDestDropdown] = useState(false);
+  
   
   const [formData, setFormData] = useState<CreateDisruptionRequest>({
     flight_number: '',
@@ -30,44 +23,10 @@ export const DisruptionForm: React.FC<DisruptionFormProps> = ({ onSuccess }) => 
   });
 
   // Search origin airports
-  useEffect(() => {
-    const searchAirports = async () => {
-      if (originSearch.length < 2) {
-        setOriginSuggestions([]);
-        return;
-      }
-      
-      try {
-        const results = await airportApi.searchAirports(originSearch);
-        setOriginSuggestions(results);
-      } catch (err) {
-        console.error('Failed to search airports:', err);
-      }
-    };
-    
-    const timer = setTimeout(searchAirports, 300);
-    return () => clearTimeout(timer);
-  }, [originSearch]);
+  
 
   // Search destination airports
-  useEffect(() => {
-    const searchAirports = async () => {
-      if (destinationSearch.length < 2) {
-        setDestinationSuggestions([]);
-        return;
-      }
-      
-      try {
-        const results = await airportApi.searchAirports(destinationSearch);
-        setDestinationSuggestions(results);
-      } catch (err) {
-        console.error('Failed to search airports:', err);
-      }
-    };
-    
-    const timer = setTimeout(searchAirports, 300);
-    return () => clearTimeout(timer);
-  }, [destinationSearch]);
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,13 +53,13 @@ export const DisruptionForm: React.FC<DisruptionFormProps> = ({ onSuccess }) => 
     console.error('❌ Validation failed: airline is empty');
     return;
   }
-  if (!formData.origin?.trim()) {
-    setError('Please select origin airport');
+  if (!formData.origin?.trim()|| formData.origin.length !== 3) {
+    setError('Please enter a valid 3-letter origin airport code (e.g., JFK)');
     console.error('❌ Validation failed: origin is empty');
     return;
   }
-  if (!formData.destination?.trim()) {
-    setError('Please select destination airport');
+  if (!formData.destination?.trim() || formData.destination.length !== 3) {
+    setError('Please enter a valid 3-letter destination airport code (e.g., LHR)');
     console.error('❌ Validation failed: destination is empty');
     return;
   }
@@ -138,22 +97,10 @@ export const DisruptionForm: React.FC<DisruptionFormProps> = ({ onSuccess }) => 
   };
 
   // Select origin airport
-  const selectOrigin = (airport: AirportSuggestion) => {
-    const displayValue = `${airport.city}, ${airport.country} (${airport.code})`;
-    setFormData(prev => ({ ...prev, origin: displayValue }));
-    setOriginSearch(displayValue);
-    setShowOriginDropdown(false);
-    console.log('✅ Selected origin:', displayValue);
-  };
+  
 
   // Select destination airport
-  const selectDestination = (airport: AirportSuggestion) => {
-    const displayValue = `${airport.city}, ${airport.country} (${airport.code})`;
-    setFormData(prev => ({ ...prev, destination: displayValue }));
-    setDestinationSearch(displayValue);
-    setShowDestDropdown(false);
-    console.log('✅ Selected destination:', displayValue);
-  };
+  
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -200,137 +147,64 @@ export const DisruptionForm: React.FC<DisruptionFormProps> = ({ onSuccess }) => 
             </div>
           </div>
 
-          {/* Origin & Destination with Autocomplete */}
+           {/* Origin & Destination — IATA codes only */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  {/* Origin */}
-  <div className="relative">
-    <label className="block text-sm font-medium text-gray-300 mb-2">
-      Origin Airport <span className="text-red-400">*</span>
-    </label>
-    <input
-      type="text"
-      value={originSearch}
-      onChange={(e) => {
-        const value = e.target.value;
-        setOriginSearch(value);
-        // ✅ IMMEDIATELY update formData as user types
-        setFormData(prev => ({ ...prev, origin: value }));
-        setShowOriginDropdown(true);
-      }}
-      onFocus={() => setShowOriginDropdown(true)}
-      onBlur={() => {
-        // ✅ Close dropdown after short delay
-        setTimeout(() => setShowOriginDropdown(false), 200);
-      }}
-      placeholder="Type city or airport code..."
-      className="w-full px-4 py-3 bg-[rgba(15,23,42,0.5)] border border-[rgba(148,163,184,0.2)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
-      required
-    />
-    
-    {/* Dropdown */}
-    {showOriginDropdown && originSuggestions.length > 0 && (
-      <div 
-        className="absolute z-50 w-full mt-1 bg-[rgba(15,23,42,0.98)] backdrop-blur-xl border border-[rgba(148,163,184,0.3)] rounded-lg shadow-2xl max-h-60 overflow-y-auto"
-      >
-        {originSuggestions.map((airport, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault(); // Prevent blur
-              selectOrigin(airport);
-            }}
-            className="w-full px-4 py-3 text-left hover:bg-[rgba(249,115,22,0.1)] transition-colors text-white border-b border-[rgba(148,163,184,0.1)] last:border-b-0"
-          >
-            <div className="font-medium text-sm">{airport.city}, {airport.country}</div>
-            <div className="text-xs text-gray-400 mt-1">
-              <span className="font-mono bg-orange-500/20 px-2 py-0.5 rounded">{airport.code}</span>
-              <span className="ml-2">{airport.name}</span>
-            </div>
-          </button>
-        ))}
-      </div>
-    )}
-    
-    {/* Visual indicator */}
-    {formData.origin && formData.origin.includes('(') && (
-      <div className="mt-1 text-xs text-green-400 flex items-center gap-1">
-        <span>✓</span>
-        <span>Airport selected from list</span>
-      </div>
-    )}
-    {formData.origin && !formData.origin.includes('(') && (
-      <div className="mt-1 text-xs text-yellow-400 flex items-center gap-1">
-        <span>⚠</span>
-        <span>Manual entry - will be auto-resolved</span>
-      </div>
-    )}
-  </div>
 
-  {/* Destination */}
-  <div className="relative">
-    <label className="block text-sm font-medium text-gray-300 mb-2">
-      Destination Airport <span className="text-red-400">*</span>
-    </label>
-    <input
-      type="text"
-      value={destinationSearch}
-      onChange={(e) => {
-        const value = e.target.value;
-        setDestinationSearch(value);
-        // ✅ IMMEDIATELY update formData as user types
-        setFormData(prev => ({ ...prev, destination: value }));
-        setShowDestDropdown(true);
-      }}
-      onFocus={() => setShowDestDropdown(true)}
-      onBlur={() => {
-        setTimeout(() => setShowDestDropdown(false), 200);
-      }}
-      placeholder="Type city or airport code..."
-      className="w-full px-4 py-3 bg-[rgba(15,23,42,0.5)] border border-[rgba(148,163,184,0.2)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
-      required
-    />
-    
-    {/* Dropdown */}
-    {showDestDropdown && destinationSuggestions.length > 0 && (
-      <div 
-        className="absolute z-50 w-full mt-1 bg-[rgba(15,23,42,0.98)] backdrop-blur-xl border border-[rgba(148,163,184,0.3)] rounded-lg shadow-2xl max-h-60 overflow-y-auto"
-      >
-        {destinationSuggestions.map((airport, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              selectDestination(airport);
-            }}
-            className="w-full px-4 py-3 text-left hover:bg-[rgba(249,115,22,0.1)] transition-colors text-white border-b border-[rgba(148,163,184,0.1)] last:border-b-0"
-          >
-            <div className="font-medium text-sm">{airport.city}, {airport.country}</div>
-            <div className="text-xs text-gray-400 mt-1">
-              <span className="font-mono bg-orange-500/20 px-2 py-0.5 rounded">{airport.code}</span>
-              <span className="ml-2">{airport.name}</span>
+            {/* Origin */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Origin Airport Code <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                name="origin"
+                value={formData.origin}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+                  setFormData(prev => ({ ...prev, origin: val }));
+                }}
+                placeholder="e.g., JFK"
+                maxLength={3}
+                className="w-full px-4 py-3 bg-[rgba(15,23,42,0.5)] border border-[rgba(148,163,184,0.2)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-mono tracking-widest uppercase"
+                required
+              />
+              {formData.origin.length > 0 && formData.origin.length < 3 && (
+                <p className="mt-1 text-xs text-yellow-400">IATA codes are 3 letters (e.g., BOM, DEL, JFK)</p>
+              )}
+              {formData.origin.length === 3 && (
+                <p className="mt-1 text-xs text-green-400">✓ Valid IATA code format</p>
+              )}
             </div>
-          </button>
-        ))}
-      </div>
-    )}
+
+            {/* Destination */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Destination Airport Code <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                name="destination"
+                value={formData.destination}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+                  setFormData(prev => ({ ...prev, destination: val }));
+                }}
+                placeholder="e.g., LHR"
+                maxLength={3}
+                className="w-full px-4 py-3 bg-[rgba(15,23,42,0.5)] border border-[rgba(148,163,184,0.2)] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-mono tracking-widest uppercase"
+                required
+              />
+              {formData.destination.length > 0 && formData.destination.length < 3 && (
+                <p className="mt-1 text-xs text-yellow-400">IATA codes are 3 letters (e.g., BOM, DEL, JFK)</p>
+              )}
+              {formData.destination.length === 3 && (
+                <p className="mt-1 text-xs text-green-400">✓ Valid IATA code format</p>
+              )}
+            </div>
+
+          </div>
+          
     
-    {/* Visual indicator */}
-    {formData.destination && formData.destination.includes('(') && (
-      <div className="mt-1 text-xs text-green-400 flex items-center gap-1">
-        <span>✓</span>
-        <span>Airport selected from list</span>
-      </div>
-    )}
-    {formData.destination && !formData.destination.includes('(') && (
-      <div className="mt-1 text-xs text-yellow-400 flex items-center gap-1">
-        <span>⚠</span>
-        <span>Manual entry - will be auto-resolved</span>
-      </div>
-    )}
-  </div>
-</div>
 
           {/* Disruption Date & PNR */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

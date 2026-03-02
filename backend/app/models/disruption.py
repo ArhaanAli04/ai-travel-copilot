@@ -120,6 +120,9 @@ class DisruptionOption(Base):
     priority_rank = Column(Integer, default=0)  # Higher = more recommended
     ai_reasoning = Column(Text, nullable=True)  # Why AI suggested this option
     
+    # Flexible JSON storage (flight details, pros/cons, etc.)
+    meta_data = Column(JSON, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     

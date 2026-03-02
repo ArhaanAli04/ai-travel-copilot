@@ -3,13 +3,13 @@ API endpoints for travel disruption management
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
-from datetime import datetime,timezone
+from typing import List, Optional
+from datetime import datetime,timezone,timedelta
 import logging
 from app.api.flights import get_airport_code
 import re
 from app.core.postgres import get_db
-from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity
+from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity, OptionType
 from app.schemas.disruption import (
     DisruptionCaseCreate,
     DisruptionCaseUpdate,
@@ -508,7 +508,24 @@ async def suggest_disruption_options(
         )
     
     try:
-        # Generate options using AI agent
+        # ✅ Check DB cache first — avoid Gemini call if options already exist
+        existing = db.query(DisruptionOption).filter(
+            DisruptionOption.disruption_case_id == case_id,
+            DisruptionOption.option_type != OptionType.ALTERNATIVE_FLIGHT
+        ).all()
+
+        if existing:
+            logger.info(f"⚡ DB CACHE HIT — returning {len(existing)} saved options for case {case_id}, no Gemini call")
+            from app.schemas.disruption import DisruptionOptionResponse
+            option_responses = [DisruptionOptionResponse.model_validate(opt) for opt in existing]
+            return SuggestOptionsResponse(
+                options=option_responses,
+                total_options=len(option_responses),
+                generated_at=datetime.now(timezone.utc)
+            )
+
+        # No cached options — generate with Gemini
+        logger.info(f"🤖 GEMINI CALL — generating options for case {case_id}...")
         options = await disruption_agent.suggest_options(
             disruption_case=case,
             db=db,
@@ -650,6 +667,153 @@ async def generate_disruption_message(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate message: {str(e)}"
         )
+
+@router.post("/{case_id}/search-flights", response_model=SuggestOptionsResponse)
+async def search_alternative_flights(
+    case_id: int,
+    search_date: Optional[str] = None,  # YYYY-MM-DD, defaults to disruption_date
+    db: Session = Depends(get_db)
+):
+    """
+    Search alternative flights for a specific date.
+    Used by frontend date tab switcher (today / tomorrow).
+    Does NOT regenerate refund/hotel/insurance options.
+    Only generates alternative_flight options for the given date.
+    """
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
+
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+    try:
+        from app.services.disruption_service import disruption_service
+        from app.models.disruption import DisruptionOption, OptionType
+
+        # Use provided date or fall back to disruption date
+        if search_date:
+            departure_date = search_date
+        else:
+            departure_date = case.disruption_date.strftime("%Y-%m-%d")
+
+        origin_iata = case.origin.strip().upper()
+        destination_iata = case.destination.strip().upper()
+
+        logger.info(f"🔍 Flight request: {origin_iata}→{destination_iata} on {departure_date} for case {case_id}")
+
+        # Check DB cache first — skip SerpAPI if already saved for this date
+        existing = db.query(DisruptionOption).filter(
+            DisruptionOption.disruption_case_id == case_id,
+            DisruptionOption.option_type == OptionType.ALTERNATIVE_FLIGHT,
+        ).all()
+
+        existing_dates = {
+            (opt.meta_data or {}).get("search_date") for opt in existing
+        }
+
+        if departure_date in existing_dates:
+            logger.info(f"⚡ DB CACHE HIT — returning saved flights for {departure_date}, no SerpAPI call")
+            cached = [opt for opt in existing if (opt.meta_data or {}).get("search_date") == departure_date]
+            from app.schemas.disruption import DisruptionOptionResponse
+            option_responses = [DisruptionOptionResponse.model_validate(opt) for opt in cached]
+            return SuggestOptionsResponse(
+                options=option_responses,
+                total_options=len(option_responses),
+                generated_at=datetime.now(timezone.utc)
+            )
+
+        # No cache — call SerpAPI
+        logger.info(f"🌐 SERPAPI CALL — searching flights: {origin_iata}→{destination_iata} on {departure_date}")
+        alternative_flights = await disruption_service.search_alternative_flights(
+            origin_iata=origin_iata,
+            destination_iata=destination_iata,
+            departure_date=departure_date,
+            cabin_class="economy",
+            max_results=3
+        )
+
+        if not alternative_flights:
+            return SuggestOptionsResponse(
+                options=[],
+                total_options=0,
+                generated_at=datetime.now(timezone.utc)
+            )
+
+        # Build and SAVE to DB
+        flight_options = []
+        for i, flight in enumerate(alternative_flights):
+            original_time = case.disruption_date
+            new_departure = datetime.fromisoformat(flight["departure_time"])
+            time_diff_hours = (new_departure - original_time).total_seconds() / 3600
+
+            pros, cons = [], []
+            if flight["stops"] == 0:
+                pros.append("Direct flight")
+            else:
+                cons.append(f"{flight['stops']} stop(s)")
+            if flight["airline"] == case.airline:
+                pros.append("Same airline — easier rebooking")
+            else:
+                cons.append("Different airline — may require new booking")
+            if abs(time_diff_hours) < 2:
+                pros.append("Similar departure time")
+            elif time_diff_hours > 0:
+                cons.append(f"Departs {int(time_diff_hours)}h later")
+            if flight["duration_minutes"] < 300:
+                pros.append("Short flight time")
+
+            db_option = DisruptionOption(
+                disruption_case_id=case_id,
+                option_type=OptionType.ALTERNATIVE_FLIGHT,
+                title=f"Rebook on {flight['flight_number']} ({flight['airline']})",
+                description=f"Alternative flight on {departure_date}",
+                estimated_cost=flight["price_amount"],
+                action_required=f"Contact {flight['airline']} or use booking link",
+                booking_url=flight.get("booking_url"),
+                contact_info=f"{flight['airline']} customer service",
+                priority_rank=100 - (i * 10),
+                ai_reasoning=f"{flight['stops']} stop(s), {flight['duration_minutes']}min",
+                meta_data={
+                    "flight_details": {
+                        "flight_number": flight["flight_number"],
+                        "airline": flight["airline"],
+                        "departure_time": flight["departure_time"],
+                        "arrival_time": flight["arrival_time"],
+                        "duration_minutes": flight["duration_minutes"],
+                        "stops": flight["stops"],
+                        "price_amount": flight["price_amount"],
+                        "price_currency": flight["price_currency"],
+                    },
+                    "pros": pros,
+                    "cons": cons,
+                    "recommended": i == 0,
+                    "search_date": departure_date
+                }
+            )
+            db.add(db_option)
+            flight_options.append(db_option)
+
+        db.commit()
+        for opt in flight_options:
+            db.refresh(opt)  # get real DB-assigned IDs and created_at
+        logger.info(f"💾 Saved {len(flight_options)} flight options to DB for {departure_date}")
+
+        from app.schemas.disruption import DisruptionOptionResponse
+        option_responses = [DisruptionOptionResponse.model_validate(opt) for opt in flight_options]
+
+        return SuggestOptionsResponse(
+            options=option_responses,
+            total_options=len(option_responses),
+            generated_at=datetime.now(timezone.utc)
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Flight search failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Flight search failed: {str(e)}")
 
 from app.schemas.disruption import ChatRequest, ChatResponse
 

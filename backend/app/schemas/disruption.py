@@ -99,6 +99,7 @@ class DisruptionOptionResponse(BaseModel):
     priority_rank: int
     ai_reasoning: Optional[str]
     created_at: datetime
+    meta_data: Optional[dict] = None
     
     model_config = ConfigDict(from_attributes=True)
 
