@@ -338,6 +338,75 @@ class DisruptionService:
             # Return empty list instead of raising - allow other options to be generated
             return []
 
+    async def get_airline_info(self, airline_name: str, db: Session) -> Dict:
+        """
+        Get airline contact info — DB first, SerpAPI on miss.
+        """
+        from app.models.airline import Airline
+
+        # 1. Check DB cache
+        existing = db.query(Airline).filter(
+            Airline.name.ilike(f"%{airline_name}%")
+        ).first()
+
+        if existing:
+            logger.info(f"⚡ DB CACHE HIT — airline info for {airline_name}")
+            return {
+                "name": existing.name,
+                "website": existing.website,
+                "customer_service_url": existing.customer_service_url,
+                "phone": existing.phone,
+                "iata_code": existing.iata_code,
+            }
+
+        # 2. Cache miss — fetch via SerpAPI Knowledge Graph
+        logger.info(f"🌐 SERPAPI CALL — fetching airline info for {airline_name}")
+        try:
+            import httpx
+            params = {
+                "engine": "google",
+                "q": f"{airline_name} airline official website customer service",
+                "api_key": settings.SERPAPI_KEY,
+                "num": 3
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get("https://serpapi.com/search", params=params)
+                data = response.json()
+
+            # Extract from knowledge graph if available
+            kg = data.get("knowledge_graph", {})
+            website = kg.get("website") or kg.get("official_website")
+            phone = kg.get("phone")
+
+            # Fallback: grab first organic result URL as website
+            if not website:
+                organic = data.get("organic_results", [])
+                if organic:
+                    website = organic[0].get("link")
+
+            # Save to DB
+            airline_record = Airline(
+                name=airline_name,
+                website=website,
+                customer_service_url=website,  # refine later if KG has specific CS url
+                phone=phone,
+            )
+            db.add(airline_record)
+            db.commit()
+            db.refresh(airline_record)
+            logger.info(f"💾 Saved airline info for {airline_name} to DB")
+
+            return {
+                "name": airline_name,
+                "website": website,
+                "customer_service_url": website,
+                "phone": phone,
+                "iata_code": None,
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch airline info for {airline_name}: {e}")
+            return {"name": airline_name, "website": None, "phone": None}
 
     async def check_travel_alerts(
         self,

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-
+import { createPortal } from 'react-dom';
 interface InfoModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -11,7 +11,7 @@ interface InfoModalProps {
 export const InfoModal = ({ isOpen, onClose, title, icon, children }: InfoModalProps) => {
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div className="relative w-full max-w-md bg-[#0a0e14]/95 backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-2xl shadow-2xl animate-scale-in">
         
@@ -46,7 +46,8 @@ export const InfoModal = ({ isOpen, onClose, title, icon, children }: InfoModalP
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

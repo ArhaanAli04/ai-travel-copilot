@@ -520,15 +520,18 @@ export const disruptionApi = {
   },
 
   // Search alternative flights for a specific date
-  searchFlights: async (caseId: number, date?: string): Promise<{
+  searchFlights: async (caseId: number, date?: string, force = false): Promise<{
     options: DisruptionOption[];
     total_options: number;
     generated_at: string;
   }> => {
-    const params = date ? { search_date: date } : {};
+    const params: Record<string, string> = {};
+    if (date) params.search_date = date;
+    if (force) params.force = 'true';
     const response = await api.post(`/disruptions/${caseId}/search-flights`, {}, { params });
     return response.data;
   },
+
 };
 
 export default api;

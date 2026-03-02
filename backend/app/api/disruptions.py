@@ -672,6 +672,7 @@ async def generate_disruption_message(
 async def search_alternative_flights(
     case_id: int,
     search_date: Optional[str] = None,  # YYYY-MM-DD, defaults to disruption_date
+    force: bool = False,
     db: Session = Depends(get_db)
 ):
     """
@@ -700,6 +701,21 @@ async def search_alternative_flights(
 
         origin_iata = case.origin.strip().upper()
         destination_iata = case.destination.strip().upper()
+
+        # Force refresh — delete existing DB rows for this date
+        if force:
+            existing_for_date = db.query(DisruptionOption).filter(
+                DisruptionOption.disruption_case_id == case_id,
+                DisruptionOption.option_type == OptionType.ALTERNATIVE_FLIGHT,
+            ).all()
+            to_delete = [
+                opt for opt in existing_for_date
+                if (opt.meta_data or {}).get("search_date") == departure_date
+            ]
+            for opt in to_delete:
+                db.delete(opt)
+            db.commit()
+            logger.info(f"🗑️ Deleted {len(to_delete)} cached flights for {departure_date} (forced refresh)")
 
         logger.info(f"🔍 Flight request: {origin_iata}→{destination_iata} on {departure_date} for case {case_id}")
 
@@ -764,6 +780,8 @@ async def search_alternative_flights(
             if flight["duration_minutes"] < 300:
                 pros.append("Short flight time")
 
+            airline_info = await disruption_service.get_airline_info(flight["airline"], db)
+
             db_option = DisruptionOption(
                 disruption_case_id=case_id,
                 option_type=OptionType.ALTERNATIVE_FLIGHT,
@@ -789,7 +807,12 @@ async def search_alternative_flights(
                     "pros": pros,
                     "cons": cons,
                     "recommended": i == 0,
-                    "search_date": departure_date
+                    "search_date": departure_date,
+                    "contact_details": {          # ✅ NEW
+                        "website": airline_info.get("website"),
+                        "phone": airline_info.get("phone"),
+                        "customer_service_url": airline_info.get("customer_service_url"),
+                    }
                 }
             )
             db.add(db_option)

@@ -22,6 +22,11 @@ export const AlternativeFlightsGrid: React.FC<AlternativeFlightsGridProps> = ({ 
     airline: string;
     flightNumber: string;
     contactInfo: string;
+    contactDetails?: {
+      website?: string;
+      phone?: string;
+      customer_service_url?: string;
+    };
   } | null>(null);
   const hasFetchedRef = useRef<Record<string, boolean>>({});
   const hasLoadedInitialRef = useRef(false);
@@ -89,7 +94,7 @@ export const AlternativeFlightsGrid: React.FC<AlternativeFlightsGridProps> = ({ 
     setError(null);
     try {
       console.log(`🌐 SERPAPI CALL — searching flights for ${date}...`);
-      const response = await disruptionApi.searchFlights(disruptionCase.id, date);
+      const response = await disruptionApi.searchFlights(disruptionCase.id, date,force);
       const flights = response.options.filter(o => o.option_type === 'alternative_flight');
       console.log(`✅ SERPAPI RESULT — ${flights.length} flight(s) found for ${date}`);
 
@@ -355,6 +360,7 @@ export const AlternativeFlightsGrid: React.FC<AlternativeFlightsGridProps> = ({ 
                       airline: flight.airline,
                       flightNumber: flight.flight_number,
                       contactInfo: option.contact_info || '',
+                      contactDetails: (option.meta_data as any)?.contact_details,
                     })}
                     className="px-4 py-2 bg-[rgba(148,163,184,0.1)] hover:bg-[rgba(148,163,184,0.2)] text-gray-300 text-sm rounded-lg transition-colors"
                   >
@@ -392,7 +398,31 @@ export const AlternativeFlightsGrid: React.FC<AlternativeFlightsGridProps> = ({ 
               </p>
             </div>
 
-            {contactModal.contactInfo && (
+             {/* Official Website */}
+            {contactModal.contactDetails?.website && (
+              <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                <p className="text-xs text-green-400 uppercase tracking-wider mb-2">Official Website</p>
+                <a
+                  href={contactModal.contactDetails.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 text-sm underline break-all"
+                >
+                  {contactModal.contactDetails.website}
+                </a>
+              </div>
+            )}
+
+            {/* Phone */}
+            {contactModal.contactDetails?.phone && (
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                <p className="text-xs text-purple-400 uppercase tracking-wider mb-1">Customer Service Phone</p>
+                <p className="text-gray-300 text-sm font-mono">{contactModal.contactDetails.phone}</p>
+              </div>
+            )}
+
+            {/* Fallback: old plain contact info if no structured data yet */}
+            {!contactModal.contactDetails?.website && !contactModal.contactDetails?.phone && contactModal.contactInfo && (
               <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
                 <p className="text-xs text-blue-400 uppercase tracking-wider mb-1">Contact Details</p>
                 <p className="text-gray-300 text-sm">{contactModal.contactInfo}</p>
