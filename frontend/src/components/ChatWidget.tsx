@@ -13,9 +13,10 @@ interface ChatMessage {
 
 interface ChatWidgetProps {
   disruptionCase: DisruptionCase;
+  hideHeader?: boolean;
 }
 
-export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase }) => {
+export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase, hideHeader = false }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -103,11 +104,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase }) => {
 
   return (
     <div
-      className={`bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl transition-all duration-300 sticky top-24 flex flex-col overflow-hidden ${
-        isMinimized ? 'h-14' : 'h-[600px]'
+      className={`bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl transition-all duration-300 sticky top-24 flex flex-col overflow-hidden h-full ${
+        isMinimized ? 'h-14' : ''
       }`}
     >
       {/* Header — matches local discovery panel header style */}
+      {!hideHeader && (
       <div
         className="flex items-center justify-between px-4 py-3 border-b border-[rgba(148,163,184,0.2)] cursor-pointer hover:bg-[rgba(148,163,184,0.04)] transition-colors flex-shrink-0"
         onClick={() => setIsMinimized(!isMinimized)}
@@ -125,8 +127,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase }) => {
           {isMinimized ? '▲' : '▼'}
         </button>
       </div>
+      )}
 
-      {!isMinimized && (
+      {(!isMinimized || hideHeader) && (
         <>
           {/* Messages — matches ChatMessages.tsx scroll container */}
           <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
