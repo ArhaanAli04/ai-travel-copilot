@@ -539,46 +539,7 @@ class DisruptionService:
                 case.current_status = "Unable to check flight status"
             
             # ✅ 2. Check weather alerts with timeout
-            departure_airport = None
-            # Try to get airport from flight status first
-            if case.meta_data.get("flight_status"):
-                departure_airport = case.meta_data["flight_status"].get("departure", {}).get("iata")
-                logger.info(f"📍 Using airport from flight status: {departure_airport}")
-            
-            if not departure_airport :
-                departure_airport = case.origin  # Use origin IATA code
-                logger.info(f"📍 Using origin from case: {departure_airport}")
-            
-            if departure_airport and len(departure_airport) == 3:
-                logger.info(f"🌦️ Checking weather for {departure_airport}...")
-                try:
-                    weather_info = await asyncio.wait_for(
-                        self.check_weather_alerts(
-                            departure_airport,
-                            case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
-                        ),
-                        timeout=10.0
-                    )
-                    
-                    if weather_info:
-                        case.meta_data["weather"] = weather_info
-                        logger.info(f"✅ Weather: {weather_info.get('condition', 'unknown')} at {departure_airport}")
-                        
-                        # Update severity if weather is severe
-                        if weather_info.get("severity") == "high":
-                            if case.severity == DisruptionSeverity.LOW:
-                                case.severity = DisruptionSeverity.MEDIUM
-                    else:
-                        logger.warning(f"⚠️ No weather data returned for {departure_airport}")
-                                
-                except asyncio.TimeoutError:
-                    logger.warning(f"⏱️ Weather check timeout (>10s)")
-                except Exception as e:
-                    logger.warning(f"⚠️ Weather check failed: {e}")
-                    import traceback
-                    logger.warning(traceback.format_exc())
-            else:
-                logger.warning(f"⚠️ No valid airport code for weather check (got: {departure_airport})")
+           
             
             # ✅ 4. Update timestamp
             case.meta_data["last_enriched"] = datetime.now(timezone.utc).isoformat()

@@ -21,6 +21,11 @@ class DailyWeather(BaseModel):
     condition_code: int  # WMO weather code
     precipitation_probability: float  # 0-100%
     icon: str  # Weather emoji
+    wind_speed_max: Optional[float] = None
+    visibility_mean: Optional[float] = None
+    uv_index_max: Optional[float] = None
+    sunrise: Optional[str] = None
+    sunset: Optional[str] = None
 
 
 class WeatherForecast(BaseModel):
@@ -178,7 +183,7 @@ class WeatherService:
                     params={
                         "latitude": latitude,
                         "longitude": longitude,
-                        "daily": "temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max",
+                        "daily": "temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,windspeed_10m_max,visibility_mean,uv_index_max,sunrise,sunset",
                         "start_date": start_date.isoformat(),
                         "end_date": end_date.isoformat(),
                         "timezone": "auto"
@@ -205,7 +210,12 @@ class WeatherService:
                         condition=condition,
                         condition_code=weather_code,
                         precipitation_probability=daily_data["precipitation_probability_max"][i],
-                        icon=icon
+                        icon=icon,
+                        wind_speed_max=daily_data.get("windspeed_10m_max", [None] * (i+1))[i],
+                        visibility_mean=daily_data.get("visibility_mean", [None] * (i+1))[i],
+                        uv_index_max=daily_data.get("uv_index_max", [None] * (i+1))[i],
+                        sunrise=daily_data.get("sunrise", [None] * (i+1))[i],
+                        sunset=daily_data.get("sunset", [None] * (i+1))[i],
                     ))
                 
                 forecast = WeatherForecast(

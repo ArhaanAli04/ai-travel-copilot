@@ -26,7 +26,7 @@ from app.schemas.disruption import (
 )
 from app.services.disruption_service import disruption_service  # ✅ ADD THIS IMPORT
 from app.ai.disruption_agent import disruption_agent
-
+from app.services.weather_service import weather_service
 router = APIRouter(prefix="/disruptions", tags=["disruptions"])
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,14 @@ def _detect_disruption_type(notes: str) -> DisruptionType:
         return DisruptionType.BAGGAGE_ISSUE
     else:
         return DisruptionType.OTHER
+
+def _weather_severity(code: int, precip: float) -> str:
+    """Determine severity from WMO code"""
+    if code in [65, 75, 82, 86, 95, 96, 99]:  # heavy rain/snow/thunderstorm
+        return "high"
+    if code in [63, 73, 81, 85] or precip > 70:  # moderate conditions
+        return "medium"
+    return "low"
 
 @router.get("/api-usage")  # ✅ This will be: /api/disruptions/api-usage
 def get_api_usage():
@@ -319,7 +327,61 @@ def delete_disruption_case(
     
     return None
 
+@router.get("/{case_id}/weather")
+async def get_disruption_weather(
+    case_id: int,
+    db: Session = Depends(get_db)
+):
+    """Fetch weather for disruption case origin using Open-Meteo (free)"""
+    case = db.query(DisruptionCase).filter(
+        DisruptionCase.id == case_id,
+        DisruptionCase.is_deleted == 0
+    ).first()
 
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        disruption_date = case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
+
+        # Use original city name for geocoding if available, else IATA code
+        city = (case.meta_data or {}).get("original_origin") or case.origin
+
+        logger.info(f"🌦️ Fetching weather for {city} on {disruption_date}")
+
+        forecast = await weather_service.get_forecast(
+            city=city,
+            start_date=disruption_date,
+            end_date=disruption_date
+        )
+
+        if not forecast or not forecast.daily_forecasts:
+            return {"weather": None, "error": "No weather data available"}
+
+        day = forecast.daily_forecasts[0]
+
+        return {
+            "weather": {
+                "condition": day.condition,
+                "icon": day.icon,
+                "temp_max": day.temp_max,
+                "temp_min": day.temp_min,
+                "precipitation_probability": day.precipitation_probability,
+                "wind_speed_max": day.wind_speed_max,
+                "visibility_mean": day.visibility_mean,
+                "uv_index_max": day.uv_index_max,
+                "sunrise": day.sunrise,
+                "sunset": day.sunset,
+                "severity": _weather_severity(day.condition_code, day.precipitation_probability),
+                "airport_code": case.origin,
+                "city": city,
+                "fetched_at": forecast.cached_at.isoformat()
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Weather fetch failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 # ===== Option Management =====
 
 @router.post("/{case_id}/options", response_model=DisruptionOptionResponse, status_code=status.HTTP_201_CREATED)

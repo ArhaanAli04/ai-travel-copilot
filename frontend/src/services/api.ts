@@ -531,7 +531,23 @@ export const disruptionApi = {
     const response = await api.post(`/disruptions/${caseId}/search-flights`, {}, { params });
     return response.data;
   },
-
+  getWeather: async (caseId: number): Promise<{
+    weather: {
+      condition: string;
+      icon: string;
+      temp_max: number;
+      temp_min: number;
+      precipitation_probability: number;
+      severity: string;
+      airport_code: string;
+      city: string;
+      fetched_at: string;
+    } | null;
+    error?: string;
+  }> => {
+    const response = await api.get(`/disruptions/${caseId}/weather`);
+    return response.data;
+  },
 };
 
 export default api;
