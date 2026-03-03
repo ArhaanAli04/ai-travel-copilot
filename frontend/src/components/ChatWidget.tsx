@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ArrowUp, Loader2 } from 'lucide-react';
 import { disruptionApi } from '../services/api';
 import type { DisruptionCase } from '../types/disruption';
 
@@ -23,13 +24,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    fetchHistory();
-  }, [disruptionCase.id]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(() => { fetchHistory(); }, [disruptionCase.id]);
+  useEffect(() => { scrollToBottom(); }, [messages]);
 
   const fetchHistory = async () => {
     try {
@@ -51,56 +47,51 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase }) => {
     setInputValue('');
     setError(null);
 
-    // Add user message immediately
+    // Reset textarea height
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+
     const tempUserMsg: ChatMessage = {
-        id: Date.now(),
-        case_id: disruptionCase.id,
-        role: 'user',
-        content: userMessage,
-        timestamp: new Date().toISOString(),
+      id: Date.now(),
+      case_id: disruptionCase.id,
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date().toISOString(),
     };
     setMessages(prev => [...prev, tempUserMsg]);
-
     setLoading(true);
 
     try {
-        // ✅ Call real chat API with conversation history
-        const conversationHistory = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-        }));
-        
-        const response = await disruptionApi.chat(
-        disruptionCase.id, 
-        userMessage,
-        conversationHistory
-        );
-        
-        // Add assistant response
-        const assistantMsg: ChatMessage = {
+      const conversationHistory = messages.map(msg => ({ role: msg.role, content: msg.content }));
+      const response = await disruptionApi.chat(disruptionCase.id, userMessage, conversationHistory);
+      const assistantMsg: ChatMessage = {
         id: Date.now() + 1,
         case_id: disruptionCase.id,
         role: 'assistant',
         content: response.response,
         timestamp: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, assistantMsg]);
+      };
+      setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
-        setError(err.message || 'Failed to send message');
-        // Remove the temp user message on error
-        setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
-        setInputValue(userMessage); // Restore input
+      setError(err.message || 'Failed to send message');
+      setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+      setInputValue(userMessage);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    };
+  };
 
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  // Auto-resize textarea
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${e.target.scrollHeight}px`;
   };
 
   const suggestedQuestions = [
@@ -111,125 +102,157 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase }) => {
   ];
 
   return (
-    <div className={`bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl transition-all ${
-      isMinimized ? 'h-16' : 'h-[600px]'
-    } sticky top-24 flex flex-col`}>
-      {/* Header */}
-      <div 
-        className="flex items-center justify-between p-4 border-b border-[rgba(148,163,184,0.2)] cursor-pointer"
+    <div
+      className={`bg-[rgba(26,29,36,0.6)] backdrop-blur-xl border border-[rgba(148,163,184,0.2)] rounded-xl transition-all duration-300 sticky top-24 flex flex-col overflow-hidden ${
+        isMinimized ? 'h-14' : 'h-[600px]'
+      }`}
+    >
+      {/* Header — matches local discovery panel header style */}
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b border-[rgba(148,163,184,0.2)] cursor-pointer hover:bg-[rgba(148,163,184,0.04)] transition-colors flex-shrink-0"
         onClick={() => setIsMinimized(!isMinimized)}
       >
-        <h3 className="text-white font-semibold flex items-center gap-2">
-          <span>💬</span>
-          AI Assistant
-        </h3>
-        <button className="text-gray-400 hover:text-white transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#8B5CF6] flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-sm">✦</span>
+          </div>
+          <div>
+            <p className="text-white font-semibold text-sm">AI Assistant</p>
+            <p className="text-[#9CA3AF] text-xs">Flight disruption specialist</p>
+          </div>
+        </div>
+        <button className="text-[#9CA3AF] hover:text-white transition-colors p-1 hover:bg-[rgba(148,163,184,0.1)] rounded-lg">
           {isMinimized ? '▲' : '▼'}
         </button>
       </div>
 
-      {/* Chat Content */}
       {!isMinimized && (
         <>
-          {/* Messages Container */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 && (
-              <div className="text-center py-8">
-                <div className="text-4xl mb-3">👋</div>
-                <p className="text-gray-400 text-sm mb-4">
-                  Hi! I'm your AI assistant. Ask me anything about your flight disruption.
-                </p>
-                
-                {/* Suggested Questions */}
-                <div className="space-y-2">
-                  <div className="text-xs text-gray-500 uppercase mb-2">Suggested Questions</div>
-                  {suggestedQuestions.map((question, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setInputValue(question)}
-                      className="block w-full text-left p-2 bg-[rgba(148,163,184,0.1)] hover:bg-[rgba(148,163,184,0.2)] rounded text-sm text-gray-300 transition-colors"
-                    >
-                      {question}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+          {/* Messages — matches ChatMessages.tsx scroll container */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
+            {messages.length === 0 ? (
+              /* Empty state — matches ChatMessages empty state */
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center px-4">
+                  
+                  <p className="text-lg font-semibold text-white mb-2">
+                    Hi! I'm your AI assistant
+                  </p>
+                  <p className="text-sm text-[#9CA3AF] mb-6">
+                    Ask me anything about your flight disruption.
+                  </p>
 
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-lg p-3 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
-                      : 'bg-[rgba(15,23,42,0.5)] border border-[rgba(148,163,184,0.2)] text-gray-300'
-                  }`}
-                >
-                  <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                    {message.content}
-                  </div>
-                  <div className={`text-xs mt-1 ${
-                    message.role === 'user' ? 'text-blue-200' : 'text-gray-500'
-                  }`}>
-                    {new Date(message.timestamp).toLocaleTimeString([], { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
+                  {/* Suggested questions */}
+                  <div className="space-y-2 text-left">
+                    <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-3 text-center">
+                      Suggested Questions
+                    </p>
+                    {suggestedQuestions.map((question, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setInputValue(question)}
+                        className="block w-full text-left px-4 py-2.5 rounded-xl bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-sm text-[#E5E7EB] hover:border-[#38BDF8]/40 hover:bg-[#1F2937]/80 transition-all"
+                      >
+                        {question}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
-            ))}
+            ) : (
+              /* Message list — matches MessageBubble layout pattern */
+              <div className="space-y-4">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 animate-fade-in ${
+                      message.role === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    {/* Assistant avatar */}
+                    {message.role === 'assistant' && (
+                      <div className="w-8 h-8 rounded-full bg-[#8B5CF6] flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-white text-xs">✦</span>
+                      </div>
+                    )}
 
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-[rgba(15,23,42,0.5)] border border-[rgba(148,163,184,0.2)] rounded-lg p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    <div className={`max-w-[80%] group`}>
+                      <div
+                        className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                          message.role === 'user'
+                            ? 'bg-white text-[#111827] rounded-2xl rounded-tr-sm font-medium'
+                            : 'bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)] text-[#E5E7EB] rounded-2xl rounded-tl-sm'
+                        }`}
+                      >
+                        {message.content}
+                      </div>
+                      {/* Timestamp on hover */}
+                      <div className={`text-[10px] mt-1 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity ${
+                        message.role === 'user' ? 'text-right' : 'text-left'
+                      }`}>
+                        {new Date(message.timestamp).toLocaleTimeString([], {
+                          hour: '2-digit', minute: '2-digit'
+                        })}
+                      </div>
                     </div>
-                    <span className="text-sm text-gray-400">Thinking...</span>
+
+                    {/* User avatar */}
+                    {message.role === 'user' && (
+                      <div className="w-8 h-8 rounded-full bg-[#374151] flex items-center justify-center flex-shrink-0 mt-0.5 text-white text-xs font-bold">
+                        Y
+                      </div>
+                    )}
                   </div>
-                </div>
+                ))}
+
+                {/* Error state — matches ErrorState pattern */}
+                {error && !loading && (
+                  <div className="flex items-start gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                    <span className="text-red-400 text-sm">⚠️</span>
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                )}
+
+                {/* Loading indicator — matches ChatMessages loading pattern */}
+                {loading && (
+                  <div className="flex items-center gap-3 animate-fade-in">
+                    <div className="w-8 h-8 rounded-full bg-[#8B5CF6] flex items-center justify-center flex-shrink-0">
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    </div>
+                    <div className="px-4 py-3 bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)] rounded-2xl rounded-tl-sm">
+                      <p className="text-sm text-[#E5E7EB]">Thinking...</p>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
               </div>
             )}
-
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                <p className="text-red-400 text-sm">{error}</p>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div className="p-4 border-t border-[rgba(148,163,184,0.2)]">
-            <div className="flex gap-2">
+          {/* Input — exact ChatInput.tsx pattern */}
+          <div className="flex-shrink-0 border-t border-[rgba(148,163,184,0.2)] bg-[#0a0e14]/50 backdrop-blur-xl">
+            <div className="flex items-end gap-2 p-4">
               <textarea
                 ref={inputRef}
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask me anything..."
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask me anything about your disruption..."
                 disabled={loading}
-                rows={2}
-                className="flex-1 bg-[rgba(15,23,42,0.5)] border border-[rgba(148,163,184,0.2)] rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 transition-colors resize-none disabled:opacity-50"
+                rows={1}
+                className="flex-1 resize-none rounded-lg bg-[#1F2937] border border-[rgba(148,163,184,0.2)] text-white placeholder:text-[#6B7280] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#38BDF8] focus:border-transparent disabled:bg-[#1F2937]/50 disabled:text-[#6B7280] max-h-32 overflow-y-auto custom-scrollbar"
               />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim() || loading}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-white text-[#111827] hover:bg-[#E5E7EB] disabled:bg-[#374151] disabled:text-[#6B7280] disabled:cursor-not-allowed transition-all shadow-md"
               >
-                {loading ? '...' : '→'}
+                {loading
+                  ? <Loader2 className="w-5 h-5 animate-spin" />
+                  : <ArrowUp className="w-5 h-5" />
+                }
               </button>
-            </div>
-            <div className="text-xs text-gray-500 mt-2">
-              Press Enter to send, Shift+Enter for new line
             </div>
           </div>
         </>

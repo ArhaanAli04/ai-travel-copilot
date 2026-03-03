@@ -9,7 +9,7 @@ import logging
 from app.api.flights import get_airport_code
 import re
 from app.core.postgres import get_db
-from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity, OptionType
+from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity, OptionType, DisruptionChatMessage
 from app.schemas.disruption import (
     DisruptionCaseCreate,
     DisruptionCaseUpdate,
@@ -908,50 +908,50 @@ async def chat_with_assistant(
     request: ChatRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    Chat with AI assistant about disruption case
-    
-    Provides:
-    - Context-aware responses about rights, options, flights
-    - Multi-turn conversation with history
-    - Integration with RAG system for policy lookups
-    """
-    # Get disruption case
     case = db.query(DisruptionCase).filter(
         DisruptionCase.id == case_id,
         DisruptionCase.is_deleted == 0
     ).first()
-    
+
     if not case:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Disruption case {case_id} not found"
-        )
-    
+        raise HTTPException(status_code=404, detail=f"Disruption case {case_id} not found")
+
     try:
-        # Use disruption agent to handle chat
+        # Save user message
+        db.add(DisruptionChatMessage(
+            disruption_case_id=case_id,
+            role="user",
+            content=request.message,
+        ))
+        db.commit()
+
+        # Generate response
         response_text = await disruption_agent.chat(
             disruption_case=case,
             user_message=request.message,
             conversation_history=request.history or [],
             db=db
         )
-        
+
+        # Save assistant response
+        db.add(DisruptionChatMessage(
+            disruption_case_id=case_id,
+            role="assistant",
+            content=response_text,
+        ))
+        db.commit()
+
         return ChatResponse(
             response=response_text,
             case_id=case_id,
             timestamp=datetime.now(timezone.utc)
         )
-        
+
     except Exception as e:
         logger.error(f"❌ Chat failed: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Chat failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 
 @router.get("/{case_id}/chat-history")
@@ -977,12 +977,26 @@ async def get_chat_history(
             detail=f"Disruption case {case_id} not found"
         )
     
-    # For now, return empty history (Day 16 will add DB persistence)
-    # This allows the chat to work without DB schema changes today
+    msgs = (
+        db.query(DisruptionChatMessage)
+        .filter(DisruptionChatMessage.disruption_case_id == case_id)
+        .order_by(DisruptionChatMessage.created_at.asc())
+        .limit(limit)
+        .all()
+    )
     return {
-        "messages": [],
+        "messages": [
+            {
+                "id": m.id,
+                "case_id": case_id,
+                "role": m.role,
+                "content": m.content,
+                "timestamp": m.created_at.isoformat(),
+            }
+            for m in msgs
+        ],
         "case_id": case_id,
-        "total": 0
+        "total": len(msgs),
     }
 
 @router.get("/{case_id}/messages", response_model=List[DraftMessageResponse])

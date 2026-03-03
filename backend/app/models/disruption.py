@@ -84,6 +84,7 @@ class DisruptionCase(Base):
     # Relationships
     options = relationship("DisruptionOption", back_populates="case", cascade="all, delete-orphan")
     user = relationship("User", backref="disruption_cases")  #  ADDED relationship to User
+    chat_messages = relationship("DisruptionChatMessage", back_populates="case", cascade="all, delete-orphan", order_by="DisruptionChatMessage.created_at")
     
     def __repr__(self):
         return f"<DisruptionCase {self.flight_number} - {self.disruption_type.value}>"
@@ -131,3 +132,16 @@ class DisruptionOption(Base):
     
     def __repr__(self):
         return f"<DisruptionOption {self.option_type.value} for Case {self.disruption_case_id}>"
+
+
+class DisruptionChatMessage(Base):
+    """Persisted chat message for a disruption case"""
+    __tablename__ = "disruption_chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    disruption_case_id = Column(Integer, ForeignKey("disruption_cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)      # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    case = relationship("DisruptionCase", back_populates="chat_messages")
