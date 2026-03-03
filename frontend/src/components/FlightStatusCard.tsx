@@ -237,6 +237,15 @@ export const FlightStatusCard: React.FC<FlightStatusCardProps> = ({
                 <span className="text-orange-400 font-medium">+{getDelay(flightStatus.arrival.delay)}</span>
               </div>
             )}
+            {flightStatus.arrival.terminal && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-400">Terminal</span>
+              <span className="text-white">
+                {flightStatus.arrival.terminal}
+                {flightStatus.arrival.gate && ` · Gate ${flightStatus.arrival.gate}`}
+              </span>
+            </div>
+          )}
           </div>
         </div>
       )}

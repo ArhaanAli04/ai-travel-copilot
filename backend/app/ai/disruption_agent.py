@@ -1596,110 +1596,90 @@ NEXT_STEPS:
         db: Session = None
     ) -> str:
         """
-        Chat with user about their disruption case
-        
-        Provides context-aware responses using:
-        - Case details (flight, dates, status)
-        - Passenger rights (EU261, DOT, etc.)
-        - Available options (flights, refunds, hotels)
-        - Policy documents from RAG
+        Context-aware chat with intent detection and specialized prompts
         """
         logger.info(f"💬 Chat for case {disruption_case.id}: {user_message[:50]}...")
-        
+
         try:
-            # Build context about the case
-            case_context = f"""
-    Current Disruption Case:
-    - Flight: {disruption_case.flight_number} ({disruption_case.airline})
-    - Route: {disruption_case.origin} → {disruption_case.destination}
-    - Date: {disruption_case.disruption_date.strftime('%B %d, %Y')}
-    - Status: {disruption_case.current_status}
-    - Severity: {disruption_case.severity.value}
-    - Type: {disruption_case.disruption_type.value}
-    """
-            
-            # Get rights explanation
-            try:
-                rights = await self.explain_rights(disruption_case)
-                rights_context = f"""
-    Passenger Rights:
-    - Regulation: {rights.get('applicable_regulation', 'Unknown')}
-    - Compensation: {rights.get('compensation_currency', '')}{rights.get('compensation_amount', 0) or 'Not eligible'}
-    - Key Rights: {', '.join(rights.get('rights_bullets', [])[:3])}
-    """
-            except:
-                rights_context = "Passenger rights information not available."
-            
-            # Get available options
-            try:
-                options = db.query(DisruptionOption).filter(
-                    DisruptionOption.disruption_case_id == disruption_case.id
-                ).limit(3).all() if db else []
-                
-                options_context = "Available Options:\n"
-                for opt in options:
-                    options_context += f"- {opt.title}: {opt.description}\n"
-            except:
-                options_context = "Options information not available."
-            
-            # ✅ Build conversation history - Handle both dict and Pydantic objects
+            from app.services.chat_intent_handler import (
+                detect_intent,
+                get_applicable_regions,
+                fetch_rights_from_mongo,
+                build_compensation_prompt,
+                build_rights_prompt,
+                build_rebooking_prompt,
+                build_status_prompt,
+                build_general_prompt,
+            )
+
+            # ── Build conversation history text ──────────────────────────────
             history_text = ""
             if conversation_history:
-                for msg in conversation_history[-5:]:  # Last 5 messages
-                    # Check if it's a Pydantic object or dict
-                    if hasattr(msg, 'role'):
-                        role = msg.role
-                        content = msg.content
-                    else:
-                        role = msg.get('role', 'user')
-                        content = msg.get('content', '')
+                for msg in conversation_history[-6:]:
+                    role = msg.role if hasattr(msg, 'role') else msg.get('role', 'user')
+                    content = msg.content if hasattr(msg, 'content') else msg.get('content', '')
                     history_text += f"{role.title()}: {content}\n"
-            
-            # Create prompt
-            prompt = f"""You are an AI travel assistant helping a passenger with a flight disruption.
 
-    {case_context}
+            # ── Detect intent ─────────────────────────────────────────────────
+            intent = detect_intent(user_message)
 
-    {rights_context}
+            # ── Fetch shared data based on intent ─────────────────────────────
+            rights_docs = []
+            options = []
 
-    {options_context}
+            if intent in ("compensation", "rights", "general"):
+                regions = get_applicable_regions(
+                    disruption_case.origin,
+                    disruption_case.destination
+                )
+                rights_docs =await fetch_rights_from_mongo(
+                    disruption_case.disruption_type.value,
+                    regions
+                )
 
-    Recent Conversation:
-    {history_text if history_text else "This is the start of the conversation."}
+            if intent in ("rebooking", "general") and db:
+                options = db.query(DisruptionOption).filter(
+                    DisruptionOption.disruption_case_id == disruption_case.id
+                ).order_by(DisruptionOption.priority_rank).limit(4).all()
 
-    User Question: {user_message}
+            # ── Build specialized prompt ──────────────────────────────────────
+            if intent == "compensation":
+                prompt = build_compensation_prompt(
+                    disruption_case, rights_docs, history_text, user_message
+                )
+            elif intent == "rights":
+                prompt = build_rights_prompt(
+                    disruption_case, rights_docs, history_text, user_message
+                )
+            elif intent == "rebooking":
+                prompt = build_rebooking_prompt(
+                    disruption_case, options, history_text, user_message
+                )
+            elif intent == "status":
+                prompt = build_status_prompt(
+                    disruption_case, history_text, user_message
+                )
+            else:
+                prompt = build_general_prompt(
+                    disruption_case, rights_docs, options, history_text, user_message
+                )
 
-    Instructions:
-    1. Provide helpful, accurate information about the disruption
-    2. Reference specific details from the case context above
-    3. If asked about rights, mention the compensation amount and key entitlements
-    4. If asked about options, suggest the best alternatives from the list
-    5. Be concise (2-3 sentences) but informative
-    6. Use a friendly, professional tone
-    7. If you don't have specific information, be honest and suggest checking the dashboard cards
-
-    Response:"""
-
-            # ✅ Generate response using existing model instance
+            # ── Generate response ─────────────────────────────────────────────
             response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-            config=self.config
-        )
-            
+                model=self.model_name,
+                contents=prompt,
+                config=self.config
+            )
+
             answer = response.text.strip()
-            
-            logger.info(f"✅ Chat response generated ({len(answer)} chars)")
-            
+            logger.info(f"✅ Chat response generated (intent={intent}, {len(answer)} chars)")
             return answer
-            
+
         except Exception as e:
             logger.error(f"❌ Chat failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            
-            # Fallback response
-            return f"I apologize, but I encountered an error processing your question. Please check the dashboard cards for information about your disruption, or try asking your question differently."
+            return "I encountered an error processing your question. Please check the dashboard cards for disruption details, or try rephrasing your question."
 
 
     def _extract_airport_code(self, location: str) -> str:

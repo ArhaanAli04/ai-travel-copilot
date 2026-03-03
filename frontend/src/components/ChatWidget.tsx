@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowUp, Loader2 } from 'lucide-react';
 import { disruptionApi } from '../services/api';
 import type { DisruptionCase } from '../types/disruption';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessage {
   id: number;
@@ -24,6 +25,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase, hideHead
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchHistory(); }, [disruptionCase.id]);
   useEffect(() => { scrollToBottom(); }, [messages]);
@@ -39,6 +42,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase, hideHead
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBtn(distanceFromBottom > 100);
   };
 
   const handleSend = async () => {
@@ -132,7 +140,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase, hideHead
       {(!isMinimized || hideHeader) && (
         <>
           {/* Messages — matches ChatMessages.tsx scroll container */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar" onScroll={handleScroll}>
             {messages.length === 0 ? (
               /* Empty state — matches ChatMessages empty state */
               <div className="flex items-center justify-center h-full">
@@ -180,14 +188,26 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase, hideHead
                     )}
 
                     <div className={`max-w-[80%] group`}>
-                      <div
-                        className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                          message.role === 'user'
-                            ? 'bg-white text-[#111827] rounded-2xl rounded-tr-sm font-medium'
-                            : 'bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)] text-[#E5E7EB] rounded-2xl rounded-tl-sm'
-                        }`}
-                      >
-                        {message.content}
+                      <div className={`px-4 py-3 text-sm leading-relaxed ${
+                        message.role === 'user'
+                          ? 'bg-white text-[#111827] rounded-2xl rounded-tr-sm font-medium'
+                          : 'bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)] text-[#E5E7EB] rounded-2xl rounded-tl-sm'
+                      }`}>
+                        {message.role === 'user' ? (
+                          message.content
+                        ) : (
+                          <ReactMarkdown
+                            components={{
+                              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                              strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+                              ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
+                              ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
+                              li: ({ children }) => <li className="text-[#E5E7EB]">{children}</li>,
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
+                        )}
                       </div>
                       {/* Timestamp on hover */}
                       <div className={`text-[10px] mt-1 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity ${
@@ -232,7 +252,29 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ disruptionCase, hideHead
               </div>
             )}
           </div>
-
+          {/* Scroll to bottom button */}
+          <div className="relative">
+            {showScrollBtn && (
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-10">
+                <button
+                  onClick={() => {
+                    if (messagesContainerRef.current) {
+                      messagesContainerRef.current.scrollTo({
+                        top: messagesContainerRef.current.scrollHeight,
+                        behavior: 'smooth',
+                      });
+                    }
+                    setShowScrollBtn(false);
+                  }}
+                  className="w-8 h-8 rounded-full bg-[#1F2937] border border-[rgba(148,163,184,0.3)] text-gray-400 hover:text-white hover:border-[rgba(148,163,184,0.6)] transition-all flex items-center justify-center shadow-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
           {/* Input — exact ChatInput.tsx pattern */}
           <div className="flex-shrink-0 border-t border-[rgba(148,163,184,0.2)] bg-[#0a0e14]/50 backdrop-blur-xl">
             <div className="flex items-end gap-2 p-4">

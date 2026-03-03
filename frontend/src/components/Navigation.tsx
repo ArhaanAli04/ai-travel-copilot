@@ -24,10 +24,8 @@ export function Navigation() {
 
   // Check if current path matches nav item
   const isActive = (path: string) => {
-    if (path === '/local-discovery') {
-      return location.pathname.startsWith('/local-discovery');
-    }
-    return location.pathname === path;
+    
+    return location.pathname.startsWith(path);
   };
 
   return (
