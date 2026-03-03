@@ -34,12 +34,20 @@ export const FlightStatusCard: React.FC<FlightStatusCardProps> = ({
   const sevConfig = severityConfig[disruptionCase.severity] || severityConfig.low;
 
   const formatDateTime = (dateStr?: string) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleString('en-US', {
-      month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  };
+  if (!dateStr) return 'N/A';
+  // AviationStack returns local airport time with wrong UTC offset
+  // Strip the timezone offset and display the time value directly
+  const localStr = dateStr.replace(/([+-]\d{2}:\d{2}|Z)$/, '');
+  const date = new Date(localStr);
+  return date.toLocaleString('en-IN', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 
   const formatDateOnly = (dateStr?: string) => {
     if (!dateStr) return 'N/A';

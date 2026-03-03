@@ -13,6 +13,7 @@ from app.models.disruption import DisruptionCase, DisruptionSeverity
 from app.services.web_search_service import web_search_service
 import json
 from pathlib import Path
+from sqlalchemy.orm.attributes import flag_modified
 
 logger = logging.getLogger(__name__)
 
@@ -502,13 +503,14 @@ class DisruptionService:
                 flight_status = await asyncio.wait_for(
                     self.check_flight_status(
                         case.flight_number,
-                        case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
+                        date.today()
                     ),
                     timeout=10.0  # 10 second timeout
                 )
                 
                 if flight_status:
-                    case.meta_data["flight_status"] = flight_status
+                    case.meta_data = {**case.meta_data, "flight_status": flight_status}  # ← new dict, not mutation
+                    flag_modified(case, "meta_data")  # ← force SQLAlchemy to include in UPDATE
                     logger.info(f"✅ Flight status: {flight_status.get('status', 'unknown')}")
                     
                     # Update current_status based on flight status
@@ -542,7 +544,8 @@ class DisruptionService:
            
             
             # ✅ 4. Update timestamp
-            case.meta_data["last_enriched"] = datetime.now(timezone.utc).isoformat()
+            case.meta_data = {**case.meta_data, "last_enriched": datetime.now(timezone.utc).isoformat()}
+            flag_modified(case, "meta_data")
             case.updated_at = datetime.now(timezone.utc)
             
             db.commit()

@@ -39,7 +39,15 @@ const DisruptionPage: React.FC = () => {
       setLoading(false);
     }
   };
-
+  const refreshFlightStatus = async () => {
+  if (!disruptionData) return;
+  try {
+    const updated = await disruptionApi.refreshCase(disruptionData.id);
+    setDisruptionData(updated);
+  } catch (err) {
+    console.error('Failed to refresh flight status:', err);
+  }
+};
   useEffect(() => {
     if (id) loadCase(Number(id));
   }, [id]);
@@ -97,7 +105,7 @@ const DisruptionPage: React.FC = () => {
                         <>
                           <FlightStatusCard
                             disruptionCase={disruptionData}
-                            onRefresh={() => loadCase(disruptionData.id)}
+                            onRefresh={refreshFlightStatus}
                             expanded={true} 
                           />
                           <WeatherAlertCard disruptionCase={disruptionData} />
@@ -116,7 +124,7 @@ const DisruptionPage: React.FC = () => {
                           <>
                             <FlightStatusCard
                               disruptionCase={disruptionData}
-                              onRefresh={() => loadCase(disruptionData.id)}
+                              onRefresh={refreshFlightStatus}
                             />
                             <WeatherAlertCard disruptionCase={disruptionData} />
                             <RightsSummaryCard disruptionCase={disruptionData} />
