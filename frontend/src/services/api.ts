@@ -44,6 +44,9 @@ export interface Trip {
   is_favorite: boolean;
   days: TripDay[];
   flights?: Flight[];
+  include_hotels: boolean;
+  hotel_preferences?: Record<string, any>;
+  hotels?: Hotel[];
 }
 // Activity Types
 export interface Activity {
@@ -98,6 +101,8 @@ export interface TripCreate {
   include_flights: boolean;
   flight_preferences?: Record<string, any>;
   notes?: string;
+  include_hotels: boolean;
+  hotel_preferences?: Record<string, any>;
 }
 
 export interface FlightSearchParams {
@@ -363,6 +368,67 @@ export const dayApi = {
   },
 };
 
+// ── Hotel Types ────────────────────────────────────────────────────────────
+export interface Hotel {
+  id?: number;
+  name: string;
+  property_type?: string;
+  city: string;
+  address?: string;
+  coordinates?: { lat: number; lng: number };
+  rating?: number;
+  reviews_count?: number;
+  rating_breakdown?: Record<string, number>;
+  price_per_night: number;
+  price_currency: string;
+  total_price?: number;
+  check_in_date?: string;
+  check_out_date?: string;
+  nights?: number;
+  thumbnail?: string;
+  images?: string[];
+  amenities?: string[];
+  highlights?: string[];
+  booking_url?: string;
+  source?: string;
+  serpapi_property_id?: string;
+  is_selected?: boolean;
+  trip_id?: number;
+}
+
+export interface HotelSearchParams {
+  city: string;
+  check_in_date: string;
+  check_out_date: string;
+  adults: number;
+  sort_by?: 'relevance' | 'lowest_price' | 'highest_rating' | 'most_reviewed';
+  max_price?: number;
+  min_rating?: number;
+}
+
+// ── Hotel API ──────────────────────────────────────────────────────────────
+export const hotelApi = {
+  searchHotels: async (tripId: number, params?: HotelSearchParams): Promise<Hotel[]> => {
+    const response = await api.post(`/trips/${tripId}/hotels/search`, params || {});
+    return response.data;
+  },
+
+  selectHotel: async (tripId: number, hotel: Hotel): Promise<Hotel> => {
+    const response = await api.post(`/trips/${tripId}/hotels/select`, {
+      hotel_data: hotel,
+    });
+    return response.data;
+  },
+
+  getTripHotels: async (tripId: number): Promise<Hotel[]> => {
+    const response = await api.get(`/trips/${tripId}/hotels`);
+    return response.data;
+  },
+
+  deleteHotel: async (tripId: number, hotelId: number): Promise<void> => {
+    await api.delete(`/trips/${tripId}/hotels/${hotelId}`);
+  },
+};
 
 // ===== DISRUPTION API (Day 15) =====
 

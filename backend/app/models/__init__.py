@@ -6,6 +6,7 @@ from app.models.flight import Flight
 from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity, OptionType, DisruptionChatMessage
 from app.models.draft_message import DraftMessage, MessageRecipientType, MessageTone
 from app.models.airline import Airline
+from app.models.hotel import Hotel
 
 __all__ = ["User", "Trip", "TripDay", "Activity", "Flight","DisruptionCase",
     "DisruptionOption",
@@ -13,6 +14,7 @@ __all__ = ["User", "Trip", "TripDay", "Activity", "Flight","DisruptionCase",
     "DisruptionSeverity",
     "OptionType",
     "Airline",
+    "Hotel",
     "DisruptionChatMessage",
     "DraftMessage",  # ✅ ADD THIS
     "MessageRecipientType",  # ✅ ADD THIS

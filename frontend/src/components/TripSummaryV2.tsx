@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2,AlertTriangle } from 'lucide-react';
 import {type Trip,tripApi } from '../services/api';
 import FlightSection from './FlightSection';
+import HotelSection from './HotelSection';
 import ItineraryView from './ItineraryView';
 import { EditTripModal } from './EditTripModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
@@ -193,8 +194,10 @@ const handleRegenerateItinerary = async () => {
     throw new Error(error.response?.data?.detail || 'Failed to send email');
   }
 };
-  
+  console.log('trip.include_hotels:', trip.include_hotels);
+console.log('trip.hotels:', trip.hotels);
   return (
+    
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
 
       {showOutdatedWarning && (
@@ -355,6 +358,15 @@ const handleRegenerateItinerary = async () => {
           <FlightSection
             trip={trip}
             
+          />
+        </div>
+      )}
+
+      {/* Hotel Search Section */}
+      {trip.include_hotels && (
+        <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}>
+          <HotelSection
+            trip={trip}
           />
         </div>
       )}

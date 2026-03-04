@@ -3,6 +3,7 @@ import { Plus, X, Minus, Plane, MapPin, Calendar, DollarSign } from 'lucide-reac
 import type { TripCreate } from '../services/api';
 import AirportAutocomplete from './AirportAutocomplete';
 import FlightPreferences from './FlightPreferences';
+import HotelPreferences from './HotelPreferences';
 
 const INTERESTS = [
   "Adventure", "Beach", "Culture", "Food", "History", 
@@ -414,6 +415,33 @@ export function TripFormV2({
             </div>
           )}
         </div>
+
+        {/* Include Hotels Toggle */}
+        <div className="flex items-center justify-between p-4 rounded-lg bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)]">
+          <div>
+            <label htmlFor="include_hotels" className="text-base font-semibold text-white cursor-pointer">
+              Include Hotel Search
+            </label>
+            <p className="text-sm text-[#9CA3AF] mt-1">Find and save hotels for your trip</p>
+          </div>
+          <input
+            type="checkbox"
+            id="include_hotels"
+            checked={formData.include_hotels ?? false}
+            onChange={(e) => setFormData(prev => ({ ...prev, include_hotels: e.target.checked }))}
+            className="w-11 h-6 bg-gray-700 rounded-full appearance-none cursor-pointer relative
+                      checked:bg-[#F59E0B] transition-colors
+                      before:content-[''] before:absolute before:w-5 before:h-5 before:rounded-full
+                      before:bg-white before:top-0.5 before:left-0.5 before:transition-transform
+                      checked:before:translate-x-5"
+          />
+        </div>
+
+        {formData.include_hotels && (
+          <div className="animate-fade-in">
+            <HotelPreferences formData={formData} setFormData={setFormData} />
+          </div>
+        )}
 
         {/* Notes */}
         <div className="space-y-2">

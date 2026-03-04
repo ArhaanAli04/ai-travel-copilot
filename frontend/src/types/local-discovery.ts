@@ -116,7 +116,7 @@ export interface ActivityPhoto {
   thumbnail_url: string;
   width: number;
   height: number;
-  source: 'wikimedia' | 'unsplash' | 'placeholder' | 'google_images';
+  source: 'wikimedia' | 'unsplash' | 'placeholder' | 'google_images' | 'hotel';
   attribution: string;
   alt_text: string;
 }

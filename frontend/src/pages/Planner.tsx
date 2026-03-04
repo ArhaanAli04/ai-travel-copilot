@@ -22,6 +22,8 @@ const Planner = () => {
     traveler_ages: [],
     include_flights: false,
     flight_preferences: {},
+    include_hotels: false,
+    hotel_preferences: {},  
     notes: '',
   });
 
@@ -163,6 +165,8 @@ const Planner = () => {
       traveler_ages: [],
       include_flights: false,
       flight_preferences: {},
+      include_hotels: false,
+      hotel_preferences: {},
       notes: '',
     });
     setCreatedTrip(null);

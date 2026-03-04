@@ -1,9 +1,9 @@
-from pydantic import BaseModel, Field,validator
+from pydantic import BaseModel, Field,validator,field_validator
 from typing import Optional, List
 from datetime import datetime, date
 from datetime import time as Time
 from app.schemas.flight import FlightResponse
-
+from app.schemas.hotel import HotelResponse
 # Add this after the imports
 class ActivityExplanationResponse(BaseModel):
     """Response for activity explanation"""
@@ -168,6 +168,8 @@ class TripBase(BaseModel):
     traveler_ages: Optional[List[int]] = None
     include_flights: bool = False
     flight_preferences: Optional[dict] = None
+    include_hotels: bool = False          # ADD
+    hotel_preferences: Optional[dict] = None  # ADD
     notes: Optional[str] = None
     is_favorite: bool = False 
 
@@ -190,6 +192,8 @@ class TripUpdate(BaseModel):
     traveler_ages: Optional[List[int]] = None
     include_flights: Optional[bool] = None
     flight_preferences: Optional[dict] = None
+    include_hotels: Optional[bool] = None        # ADD
+    hotel_preferences: Optional[dict] = None     # ADD
     notes: Optional[str] = None
     status: Optional[str] = None
     is_favorite: Optional[bool] = None 
@@ -203,6 +207,13 @@ class TripResponse(TripBase):
     updated_at: Optional[datetime] = None
     days: List[TripDayResponse] = []
     flights: List[FlightResponse] = [] 
+    hotels: List[HotelResponse] = [] 
+
+    @field_validator('include_hotels', 'include_flights', mode='before')
+    @classmethod
+    def coerce_bool(cls, v):
+        return bool(v) if v is not None else False
+
     class Config:
         from_attributes = True
 

@@ -36,9 +36,12 @@ class Trip(Base):
     traveler_ages = Column(JSON, nullable=True)  # [28, 32, 5, 7] for family with kids
     
     # Flight preferences
-    include_flights = Column(Boolean, default=False)
+    include_flights = Column(Boolean, default=False, server_default='false', nullable=False)
     flight_preferences = Column(JSON, nullable=True)  # {class: "economy", max_stops: 1}
     
+    include_hotels = Column(Boolean, default=False, server_default='false', nullable=False)
+    hotel_preferences = Column(JSON, nullable=True)  # {sort_by: "highest_rating", max_price: 200, min_rating: 4}
+
     # Status
     status = Column(String, default="draft")  # draft, planning, planned, completed
     
@@ -52,6 +55,6 @@ class Trip(Base):
     # Relationships
     days = relationship("TripDay", back_populates="trip", cascade="all, delete-orphan")
     flights = relationship("Flight", back_populates="trip", cascade="all, delete-orphan")
-
+    hotels = relationship("Hotel", back_populates="trip", cascade="all, delete-orphan")
     def __repr__(self):
         return f"<Trip(id={self.id}, title='{self.title}', destinations={self.destinations})>"
