@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Plus, Minus } from 'lucide-react';
+import { X, Save, Plus, Minus,Plane, Hotel, CheckCircle } from 'lucide-react';
 import type { Trip } from '../services/api';
-
+import FlightPreferences from './FlightPreferences';
+import HotelPreferences from './HotelPreferences';
 
 const INTERESTS = [
   "Adventure", "Beach", "Culture", "Food", "History", 
@@ -42,6 +43,10 @@ export const EditTripModal = ({
     trip_type: trip.trip_type,
     traveler_count: trip.traveler_count,
     notes: trip.notes || '',
+    include_flights: trip.include_flights ?? false,
+    flight_preferences: trip.flight_preferences || {},
+    include_hotels: trip.include_hotels ?? false,
+    hotel_preferences: trip.hotel_preferences || {},
   });
 
   
@@ -59,6 +64,10 @@ export const EditTripModal = ({
         trip_type: trip.trip_type,
         traveler_count: trip.traveler_count,
         notes: trip.notes || '',
+        include_flights: trip.include_flights ?? false,
+        flight_preferences: trip.flight_preferences || {},
+        include_hotels: trip.include_hotels ?? false,
+        hotel_preferences: trip.hotel_preferences || {},
       });
       
     }
@@ -296,6 +305,76 @@ export const EditTripModal = ({
                 Add
               </button>
             </div>
+          </div>
+          
+          {/* Flight Search */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)]">
+              <div className="flex items-center gap-3">
+                <Plane className="w-5 h-5 text-[#38BDF8]" />
+                <div>
+                  <p className="text-base font-semibold text-white">Include Flight Search</p>
+                  <p className="text-sm text-[#9CA3AF] mt-0.5">Find and compare flights for your trip</p>
+                </div>
+              </div>
+              {formData.include_flights ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/30">
+                  <CheckCircle className="w-4 h-4 text-[#38BDF8]" />
+                  <span className="text-sm text-[#38BDF8] font-medium">Already Enabled</span>
+                </div>
+              ) : (
+                <input
+                  type="checkbox"
+                  checked={formData.include_flights}
+                  onChange={(e) => setFormData(prev => ({ ...prev, include_flights: e.target.checked }))}
+                  className="w-11 h-6 bg-gray-700 rounded-full appearance-none cursor-pointer relative
+                            checked:bg-[#38BDF8] transition-colors
+                            before:content-[''] before:absolute before:w-5 before:h-5 before:rounded-full
+                            before:bg-white before:top-0.5 before:left-0.5 before:transition-transform
+                            checked:before:translate-x-5"
+                />
+              )}
+            </div>
+            {formData.include_flights && (
+              <div className="animate-fade-in">
+                <FlightPreferences formData={formData as any} setFormData={setFormData as any} />
+              </div>
+            )}
+          </div>
+
+          {/* Hotel Search */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-[#1F2937]/50 border border-[rgba(148,163,184,0.2)]">
+              <div className="flex items-center gap-3">
+                <Hotel className="w-5 h-5 text-[#F59E0B]" />
+                <div>
+                  <p className="text-base font-semibold text-white">Include Hotel Search</p>
+                  <p className="text-sm text-[#9CA3AF] mt-0.5">Find and save hotels for your trip</p>
+                </div>
+              </div>
+              {formData.include_hotels ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/30">
+                  <CheckCircle className="w-4 h-4 text-[#F59E0B]" />
+                  <span className="text-sm text-[#F59E0B] font-medium">Already Enabled</span>
+                </div>
+              ) : (
+                <input
+                  type="checkbox"
+                  checked={formData.include_hotels}
+                  onChange={(e) => setFormData(prev => ({ ...prev, include_hotels: e.target.checked }))}
+                  className="w-11 h-6 bg-gray-700 rounded-full appearance-none cursor-pointer relative
+                            checked:bg-[#F59E0B] transition-colors
+                            before:content-[''] before:absolute before:w-5 before:h-5 before:rounded-full
+                            before:bg-white before:top-0.5 before:left-0.5 before:transition-transform
+                            checked:before:translate-x-5"
+                />
+              )}
+            </div>
+            {formData.include_hotels && (
+              <div className="animate-fade-in">
+                <HotelPreferences formData={formData as any} setFormData={setFormData as any} />
+              </div>
+            )}
           </div>
 
           {/* Notes */}
