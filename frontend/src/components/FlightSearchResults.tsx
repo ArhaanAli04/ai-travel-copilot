@@ -1,4 +1,4 @@
-import { Plane, Clock, X } from 'lucide-react';
+import { Plane, X } from 'lucide-react';
 import { type Flight } from '../services/api';
 
 interface FlightSearchResultsProps {
@@ -15,15 +15,12 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
     return `${hours}h ${mins}m`;
   };
 
-  // Group flights by direction
   const outboundFlights = flights.filter(
     (f) => f.flight_direction === 'outbound' || f.flight_direction === 'one_way'
   );
   const returnFlights = flights.filter((f) => f.flight_direction === 'return');
-
   const hasReturnFlights = returnFlights.length > 0;
 
-  // Render individual flight card
   const renderFlightCard = (flight: Flight, index: number) => (
     <div
       key={`${flight.flight_direction}-${index}`}
@@ -39,6 +36,14 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
           <p className="text-sm text-[#9CA3AF]">
             {flight.aircraft_type || 'Boeing 737'}
           </p>
+          <p className="text-xs text-[#6B7280] mt-1">
+          {new Date(flight.departure_time).toLocaleDateString('en-US', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })}
+        </p>
         </div>
         <div className="text-right">
           <div className="text-3xl font-bold text-[#22C55E]">
@@ -66,7 +71,7 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
         </div>
 
         {/* Duration & Stops */}
-        <div className="text-center min-w-[140px]">
+        <div className="text-center min-w-[120px]">
           <div className="text-sm text-[#9CA3AF] mb-2">
             {formatDuration(flight.duration_minutes)}
           </div>
@@ -155,7 +160,7 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
             <Plane className="w-6 h-6 text-[#38BDF8]" />
             <h4 className="text-xl font-bold text-white">
               {hasReturnFlights
-                ? `Found ${outboundFlights.length} outbound + ${returnFlights.length} return flights`
+                ? `Found ${outboundFlights.length} round-trip option${outboundFlights.length !== 1 ? 's' : ''}`
                 : `Found ${flights.length} flight${flights.length !== 1 ? 's' : ''}`}
             </h4>
           </div>
@@ -169,29 +174,40 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
         </div>
       </div>
 
-      {/* Outbound Flights Section */}
-      <div className={hasReturnFlights ? 'mb-8' : ''}>
-        {hasReturnFlights && (
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#38BDF8]/30">
-            <Plane className="w-5 h-5 text-[#38BDF8]" />
-            <h3 className="text-xl font-bold text-[#38BDF8]">Outbound Flights</h3>
-          </div>
-        )}
-        <div className="space-y-4">
-          {outboundFlights.map((flight, index) => renderFlightCard(flight, index))}
-        </div>
-      </div>
-
-      {/* Return Flights Section */}
+      {/* Column labels for round-trip */}
       {hasReturnFlights && (
-        <div>
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#F97316]/30">
-            <Plane className="w-5 h-5 text-[#F97316] rotate-180" />
-            <h3 className="text-xl font-bold text-[#F97316]">Return Flights</h3>
+        <div className="grid grid-cols-2 gap-4 mb-2 px-1">
+          <div className="flex items-center gap-2">
+            <Plane className="w-4 h-4 text-[#38BDF8]" />
+            <span className="text-sm font-semibold text-[#38BDF8]">Outbound</span>
           </div>
-          <div className="space-y-4">
-            {returnFlights.map((flight, index) => renderFlightCard(flight, index))}
+          <div className="flex items-center gap-2">
+            <Plane className="w-4 h-4 text-[#F97316] rotate-180" />
+            <span className="text-sm font-semibold text-[#F97316]">Return</span>
           </div>
+        </div>
+      )}
+
+      {/* Flight Cards */}
+      {hasReturnFlights ? (
+        <div className="space-y-4">
+          {outboundFlights.map((outbound, index) => {
+            const ret = returnFlights[index] ?? returnFlights[0];
+            return (
+              <div
+                key={index}
+                className="grid grid-cols-2 gap-4 animate-fade-in"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                {renderFlightCard(outbound, index)}
+                {renderFlightCard(ret, index)}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          {outboundFlights.map((flight, index) => renderFlightCard(flight, index))}
         </div>
       )}
 
