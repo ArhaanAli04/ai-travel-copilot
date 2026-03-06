@@ -2,6 +2,9 @@ import { BrowserRouter , Routes, Route,Navigate } from 'react-router-dom';
 import Planner from './pages/Planner';
 import DisruptionPage from './pages/DisruptionPage'; 
 import LocalDiscovery from './pages/LocalDiscovery';
+import SignInPage from './pages/SignInPage';
+import SignUpPage from './pages/SignUpPage';
+import AuthGuard from './components/AuthGuard';
 import { ErrorBoundary } from './components/ErrorBoundary'; // ✨ NEW
 import { NetworkStatus } from './components/NetworkStatus';
 // Placeholder components (keep for future)
@@ -41,13 +44,19 @@ function App() {
       <BrowserRouter>
         <NetworkStatus /> {/* ✨ NEW: Global network status */}
         <Routes>
+          {/* Public routes */}
+          <Route path="/sign-in/*" element={<SignInPage />} />
+          <Route path="/sign-up/*" element={<SignUpPage />} />
+          {/* Protected routes */}
+          
+          <Route path="/planner" element={<AuthGuard><Planner /></AuthGuard>} />
+          <Route path="/disruptions" element={<AuthGuard><DisruptionPage /></AuthGuard>} />
+          <Route path="/disruptions/:id" element={<AuthGuard><DisruptionPage /></AuthGuard>} />
+          <Route path="/local-discovery" element={<AuthGuard><LocalDiscovery /></AuthGuard>} />
+          <Route path="/local-discovery/:sessionId" element={<AuthGuard><LocalDiscovery /></AuthGuard>} />
+          <Route path="/safety" element={<AuthGuard><Safety /></AuthGuard>} />
+
           <Route path="/" element={<Navigate to="/planner" replace />} />
-          <Route path="/planner" element={<Planner />} />
-          <Route path="/disruptions" element={<DisruptionPage />} />
-          <Route path="/disruptions/:id" element={<DisruptionPage />} />
-          <Route path="/local-discovery" element={<LocalDiscovery />} />
-          <Route path="/local-discovery/:sessionId" element={<LocalDiscovery />} />
-          <Route path="/safety" element={<Safety />} /> {/* ✅ ADDED */}
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>
       </BrowserRouter>

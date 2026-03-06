@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     WIKIMEDIA_TIMEOUT: int = 5
     UNSPLASH_TIMEOUT: int = 5
 
+    # Clerk Auth
+    CLERK_SECRET_KEY: str
+    CLERK_PUBLISHABLE_KEY: str
+
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

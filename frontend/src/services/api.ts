@@ -8,7 +8,7 @@ import type {
   GenerateMessageRequest,
 } from '../types/disruption';
 import type { ActivityPhoto } from '../types/local-discovery';
-
+import { useAuth } from '@clerk/react';
 const draftGenerationCache = new Map<number, Promise<{ drafts: DraftMessage[] }>>();
 // Base API URL (update if your backend runs on different port)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -20,6 +20,19 @@ const api = axios.create({
   },
 });
 
+// ADD: token injector — call this from a component after Clerk loads
+export const setAuthToken = (token: string | null) => {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common['Authorization'];
+  }
+};
+
+// ADD: sync user to DB
+export const syncUser = async (): Promise<void> => {
+  await api.post('/auth/sync');
+};
 // Trip Types
 export interface Trip {
   id: number;
