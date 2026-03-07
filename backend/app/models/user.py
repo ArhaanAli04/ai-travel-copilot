@@ -22,7 +22,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # ✅ ADD THESE RELATIONSHIPS (optional but recommended)
-    # trips = relationship("Trip", backref="user", cascade="all, delete-orphan")
+    trips = relationship("Trip", backref="user", cascade="all, delete-orphan")
     # disruption_cases = relationship("DisruptionCase", backref="user", cascade="all, delete-orphan")
     def __repr__(self):
-        return f"<User(id={self.id}, email='{self.email}', name='{self.name}')>"
+        return f"<User(id={self.id}, email='{self.email}', clerk_id='{self.clerk_id}')>"

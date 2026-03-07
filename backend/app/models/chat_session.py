@@ -39,10 +39,11 @@ class ChatMessage(BaseModel):
 class ChatSession(BaseModel):
     """Chat session"""
     id: str = Field(..., description="Session ID")
-    user_id: str = Field(..., description="User ID (session ID for anonymous)")
-    title: str = Field(..., description="Session title")
-    city: str = Field(..., description="City")
-    location: Location = Field(..., description="User location")
+    user_id: str = Field(..., description="Legacy session-based user ID")
+    clerk_id: Optional[str] = Field(None, description="Clerk user ID — primary auth identifier") 
+    title: str 
+    city: str 
+    location: Location 
     messages: List[ChatMessage] = Field(default=[], description="Chat messages")
     created_at: datetime = Field(default_factory=lambda:datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -54,10 +55,10 @@ class ChatSession(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     """Request to create new chat session"""
-    user_id: str = Field(..., description="User ID")
-    city: str = Field(..., description="City name")
-    location: Location = Field(..., description="User location")
-    title: Optional[str] = Field(default="New Chat", description="Session title")
+    
+    city: str
+    location: Location
+    title: Optional[str] = Field(default="New Chat")
 
 
 class UpdateSessionRequest(BaseModel):

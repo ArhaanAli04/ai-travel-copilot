@@ -3,10 +3,12 @@ import { useEffect, useRef } from 'react';
 import { setAuthToken, syncUser } from '../services/api';
 
 const AuthSync = () => {
-  const { isSignedIn, getToken } = useAuth();
+  const { isSignedIn,isLoaded, getToken } = useAuth();
   const synced = useRef(false);
 
   useEffect(() => {
+     if (!isLoaded) return; 
+
     if (!isSignedIn) {
       setAuthToken(null);
       synced.current = false;
@@ -38,7 +40,7 @@ const AuthSync = () => {
     }, 50_000);
 
     return () => clearInterval(interval);
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn,isLoaded, getToken]);
 
   return null;
 };

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, JSON, Text
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, JSON, Text,ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.postgres import Base
@@ -13,7 +13,7 @@ class Trip(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # User relationship (will add foreign key when auth is implemented)
-    user_id = Column(Integer, nullable=True)  # Placeholder for now
+    user_id = Column(Integer,ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)  # Placeholder for now
     
     # Basic trip info
     title = Column(String, nullable=False)
@@ -56,5 +56,6 @@ class Trip(Base):
     days = relationship("TripDay", back_populates="trip", cascade="all, delete-orphan")
     flights = relationship("Flight", back_populates="trip", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="trip", cascade="all, delete-orphan")
+    
     def __repr__(self):
-        return f"<Trip(id={self.id}, title='{self.title}', destinations={self.destinations})>"
+        return f"<Trip(id={self.id}, title='{self.title}', , user_id={self.user_id})>"

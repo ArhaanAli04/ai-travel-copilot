@@ -1,7 +1,7 @@
 """
 API routes for Local Discovery - Hybrid search for POIs, tips, and blogs
 """
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import List, Optional,Dict
 from pydantic import BaseModel, Field
 import logging
@@ -15,7 +15,8 @@ from app.services.feedback_service import feedback_service
 from app.services.analytics_service import analytics_service
 from app.services.preferences_service import preferences_service
 from app.services.photo_service import get_poi_photos
-
+from app.core.dependencies import get_current_user
+from app.models.user import User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/local", tags=["Local Discovery"])
@@ -255,7 +256,10 @@ async def get_available_cities():
     }
 
 @router.post("/suggest", response_model=SuggestResponse)
-async def suggest_local_experiences(request: SuggestRequest):
+async def suggest_local_experiences(
+    request: SuggestRequest,
+    current_user: User = Depends(get_current_user),
+    ):
     """
     Generate personalized local recommendations using RAG
     
@@ -294,7 +298,7 @@ async def suggest_local_experiences(request: SuggestRequest):
             preferences=request.preferences.model_dump() if request.preferences else None,
             results_count=len(result.get("recommendations", [])),
             response_time_ms=response_time_ms,
-            user_id=None  # Add user_id from auth in future
+            user_id=str(current_user.id),  # Add user_id from auth in future
         )
 
         return result
@@ -373,7 +377,10 @@ async def get_poi_photos_endpoint(poi_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/feedback", response_model=POIFeedbackResponse)
-async def submit_poi_feedback(feedback: POIFeedbackSubmit):
+async def submit_poi_feedback(
+    feedback: POIFeedbackSubmit,
+    current_user: User = Depends(get_current_user),
+):
     """
     Submit user feedback for a POI
     
@@ -393,7 +400,7 @@ async def submit_poi_feedback(feedback: POIFeedbackSubmit):
     try:
         result = await feedback_service.submit_feedback(
             poi_id=feedback.poi_id,
-            user_id=feedback.user_id,
+            user_id=str(current_user.id),
             feedback_type=feedback.feedback_type.value,
             rating=feedback.rating,
             visited_at=feedback.visited_at,
@@ -482,7 +489,10 @@ async def get_analytics_summary(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/preferences", response_model=SavePreferencesResponse)
-async def save_user_preferences(request: UserPreferencesSave):
+async def save_user_preferences(
+    request: UserPreferencesSave,
+    current_user: User = Depends(get_current_user)
+    ):
     """
     Save user preferences for persistence across sessions
     
@@ -501,7 +511,7 @@ async def save_user_preferences(request: UserPreferencesSave):
     """
     try:
         result = await preferences_service.save_preferences(
-            user_id=request.user_id,
+            user_id=str(current_user.id),
             preferences=request.preferences.model_dump()
         )
         
@@ -519,7 +529,7 @@ async def save_user_preferences(request: UserPreferencesSave):
 
 @router.get("/preferences", response_model=UserPreferencesResponse)
 async def get_user_preferences(
-    user_id: str = Query(..., description="User ID")
+    current_user: User = Depends(get_current_user), 
 ):
     """
     Get saved user preferences
@@ -528,12 +538,12 @@ async def get_user_preferences(
     /local/preferences?user_id=user_123
     """
     try:
-        result = await preferences_service.get_preferences(user_id)
+        result = await preferences_service.get_preferences(str(current_user.id))
         
         if not result:
             # Return empty preferences if not found
             return {
-                "user_id": user_id,
+                "user_id": str(current_user.id),
                 "preferences": UserPreferences(),
                 "updated_at": datetime.now(timezone.utc)
             }
@@ -551,7 +561,7 @@ async def get_user_preferences(
 
 @router.delete("/preferences")
 async def delete_user_preferences(
-    user_id: str = Query(..., description="User ID")
+    current_user: User = Depends(get_current_user),
 ):
     """
     Delete user preferences
@@ -560,19 +570,19 @@ async def delete_user_preferences(
     DELETE /local/preferences?user_id=user_123
     """
     try:
-        deleted = await preferences_service.delete_preferences(user_id)
+        deleted = await preferences_service.delete_preferences(str(current_user.id))
         
         if deleted:
             return {
                 "success": True,
                 "message": "Preferences deleted successfully",
-                "user_id": user_id
+                "user_id": str(current_user.id)
             }
         else:
             return {
                 "success": False,
                 "message": "No preferences found to delete",
-                "user_id": user_id
+                "user_id": str(current_user.id)
             }
     
     except Exception as e:

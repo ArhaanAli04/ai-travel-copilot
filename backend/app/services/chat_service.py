@@ -33,7 +33,8 @@ class ChatService:
         user_id: str,
         city: str,
         location: Dict[str, float],
-        title: str = "New Chat"
+        title: str = "New Chat",
+        clerk_id: Optional[str] = None,
     ) -> ChatSession:
         """
         Create a new chat session
@@ -50,6 +51,7 @@ class ChatService:
         try:
             session_doc = {
                 "user_id": user_id,
+                "clerk_id": clerk_id,
                 "title": title,
                 "city": city,
                 "location": location,
@@ -70,6 +72,7 @@ class ChatService:
             return ChatSession(
                 id=session_id,
                 user_id=user_id,
+                clerk_id=clerk_id,
                 title=title,
                 city=city,
                 location=location,
@@ -110,7 +113,8 @@ class ChatService:
     async def get_user_sessions(
         self,
         user_id: str,
-        limit: int = 50
+        limit: int = 50,
+        clerk_id: Optional[str] = None,
     ) -> List[ChatSession]:
         """
         Get all sessions for a user
@@ -123,9 +127,13 @@ class ChatService:
             List of chat sessions
         """
         try:
-            cursor = self.sessions_collection.find(
-                {"user_id": user_id}
-            ).sort("updated_at", -1).limit(limit)
+            # Prefer clerk_id filter but also catch old sessions by user_id
+            if clerk_id:
+                query = {"$or": [{"clerk_id": clerk_id}, {"user_id": user_id}]}
+            else:
+                query = {"user_id": user_id}
+
+            cursor = self.sessions_collection.find(query).sort("updated_at", -1).limit(limit)
             
             sessions = await cursor.to_list(length=limit)
             # ✅ DEBUG: Log timestamps
@@ -313,6 +321,7 @@ class ChatService:
         return ChatSession(
             id=str(doc["_id"]),
             user_id=doc["user_id"],
+            clerk_id=doc.get("clerk_id"),
             title=doc["title"],
             city=doc["city"],
             location=doc["location"],

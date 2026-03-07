@@ -23,7 +23,7 @@ class UserPreferences(BaseModel):
 
 class UserPreferencesSave(BaseModel):
     """Request to save user preferences"""
-    user_id: str = Field(..., description="User ID")
+    
     preferences: UserPreferences = Field(..., description="User preferences to save")
 
 
@@ -104,7 +104,7 @@ class FeedbackType(str, Enum):
 class POIFeedbackSubmit(BaseModel):
     """Request to submit feedback for a POI"""
     poi_id: str = Field(..., description="MongoDB POI ID")
-    user_id: str = Field(..., description="User ID (can be session ID for anonymous)")
+    user_id: Optional[str] = Field(None, description="Ignored — set from JWT")  # ← optional now
     feedback_type: FeedbackType = Field(..., description="Type of feedback")
     rating: Optional[int] = Field(None, description="Rating (1-5) if feedback_type is 'rating'", ge=1, le=5)
     visited_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc), description="When user visited")

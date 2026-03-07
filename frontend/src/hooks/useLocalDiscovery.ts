@@ -18,7 +18,6 @@ import {
   addMessageToSession,
   deleteChatSession,
   getSuggestions,
-  getUserId,
   submitFeedback,
   saveUserPreferences,
   getUserPreferences,
@@ -40,7 +39,6 @@ export const useLocalDiscovery = () => {
   const [city, setCity] = useState<string>('mumbai');
   const [contextChips, setContextChips] = useState<ContextChip[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>({});
-  const [userId] = useState(getUserId());
   const [currentTime, setCurrentTime] = useState(getTimeOfDay());
   const [locationError, setLocationError] = useState<string | null>(null); // ✨ NEW
   const [retrying, setRetrying] = useState(false);
@@ -240,7 +238,7 @@ export const useLocalDiscovery = () => {
 
   const loadSessions = async () => {
     try {
-      const fetchedSessions = await getChatSessions(userId);
+      const fetchedSessions = await getChatSessions();
       setSessions(fetchedSessions);
 
     } catch (err) {
@@ -298,7 +296,7 @@ export const useLocalDiscovery = () => {
     }
     
     // Create session with fresh location
-    const newSession = await createChatSession(userId, freshCity, freshLocation);
+    const newSession = await createChatSession( freshCity, freshLocation);
 
     // ✅ NEW: Get fresh current time
     const freshTime = getTimeOfDay();
@@ -473,10 +471,10 @@ What are you looking for today?`,
   };
 
   // ✨ NEW: Retry send message
-  const retrySendMessage = useCallback((content: string) => {
+  const retrySendMessage = (content: string) => {
     setError(null);
     sendMessage(content, false);
-  }, [activeSession, userLocation, city, preferences]);
+  };
 
   const updateSessionInList = (updatedSession: ChatSession) => {
     setSessions((prev) => {
@@ -495,7 +493,7 @@ What are you looking for today?`,
 
     // ✅ Save to backend
     try {
-      await saveUserPreferences(userId, updatedPreferences);
+      await saveUserPreferences(updatedPreferences);
     } catch (err) {
       console.error('Failed to save preferences:', err);
       setError(getErrorMessage(err));
@@ -531,7 +529,7 @@ What are you looking for today?`,
     
     // ✅ Save to backend
     try {
-      await saveUserPreferences(userId, updatedPreferences);
+      await saveUserPreferences( updatedPreferences);
     } catch (err) {
       console.error('Failed to save preferences:', err);
     }
@@ -543,7 +541,6 @@ What are you looking for today?`,
       try {
         await submitFeedback(
           poiId,
-          userId,
           feedbackType,
           feedbackType === 'thumbs_up' ? 5 : 1, // rating: 5 for thumbs up, 1 for thumbs down
           undefined, // comment
@@ -557,7 +554,7 @@ What are you looking for today?`,
 
   const loadUserPreferences = async () => {
   try {
-    const savedPreferences = await getUserPreferences(userId);
+    const savedPreferences = await getUserPreferences();
     
     if (Object.keys(savedPreferences).length > 0) {
       setPreferences(savedPreferences);

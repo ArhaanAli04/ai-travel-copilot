@@ -12,8 +12,8 @@ if (!publishableKey) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
      <ClerkProvider publishableKey={publishableKey}>
+      <AuthSync /> 
       <App />
-       <AuthSync /> 
     </ClerkProvider>
   </StrictMode>,
 )

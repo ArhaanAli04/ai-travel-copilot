@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.postgres import get_db
+from app.core.dependencies import get_current_user
+from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_day import TripDay
 from app.models.activity import Activity
@@ -20,9 +22,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/trips", tags=["Planner"])
 
-
 @router.post("/", response_model=TripResponse, status_code=201)
-async def create_trip(trip: TripCreate, db: Session = Depends(get_db)):
+async def create_trip(
+    trip: TripCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+    ):
     """
     Create a new trip shell (without itinerary)
     """
@@ -47,14 +52,14 @@ async def create_trip(trip: TripCreate, db: Session = Depends(get_db)):
             hotel_preferences=trip.hotel_preferences,  # ADD
             notes=trip.notes,
             status="draft",
-            user_id=None  # Will add auth later
+            user_id=current_user.id  # Will add auth later
         )
         
         db.add(db_trip)
         db.commit()
         db.refresh(db_trip)
         
-        logger.info(f"✅ Created trip {db_trip.id}: {db_trip.title}")
+        logger.info(f"✅ Created trip {db_trip.id}: {db_trip.title} for user {current_user.id}")
         return db_trip
         
     except Exception as e:
@@ -62,58 +67,76 @@ async def create_trip(trip: TripCreate, db: Session = Depends(get_db)):
         logger.error(f"❌ Failed to create trip: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create trip: {str(e)}")
 
-
+@router.get("/favorites", response_model=List[TripListResponse])
+async def get_favorite_trips(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all favorite trips
+    
+    **What it does:**
+    1. Queries trips where is_favorite = true
+    2. Returns list of favorite trips
+    
+    **Returns:**
+    - List of favorite trips
+    """
+    try:
+        trips = (
+            db.query(Trip)
+            .filter(Trip.user_id == current_user.id, Trip.is_favorite == True)
+            .order_by(Trip.updated_at.desc())
+            .offset(skip).limit(limit).all()
+        )
+        logger.info(f"⭐ Listed {len(trips)} favorites for user {current_user.id}")
+        return trips
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to list favorite trips: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list favorite trips: {str(e)}")
+    
 @router.get("/", response_model=List[TripListResponse])
 async def list_trips(
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     List all trips (with optional filtering)
     """
     try:
-        query = db.query(Trip)
-        
-        # Apply filters
-        if user_id is not None:
-            query = query.filter(Trip.user_id == user_id)
+        query = db.query(Trip).filter(Trip.user_id == current_user.id)  # FILTER by owner
         if status:
             query = query.filter(Trip.status == status)
-        
-        # Order by created_at descending
-        query = query.order_by(Trip.created_at.desc())
-        
-        # Pagination
-        trips = query.offset(skip).limit(limit).all()
-        
-        logger.info(f"📋 Listed {len(trips)} trips")
+        trips = query.order_by(Trip.created_at.desc()).offset(skip).limit(limit).all()
+        logger.info(f"📋 Listed {len(trips)} trips for user {current_user.id}")
         return trips
         
     except Exception as e:
         logger.error(f"❌ Failed to list trips: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list trips: {str(e)}")
 
-
 @router.get("/{trip_id}", response_model=TripResponse)
-async def get_trip(trip_id: int, db: Session = Depends(get_db)):
+async def get_trip(trip_id: int, db: Session = Depends(get_db),current_user: User = Depends(get_current_user)):
     """
     Get trip details with all days and activities
     """
     try:
-        trip = db.query(Trip).filter(Trip.id == trip_id).first()
-        
+        trip = db.query(Trip).filter(
+            Trip.id == trip_id,
+            Trip.user_id == current_user.id  # OWNERSHIP CHECK
+        ).first()
         if not trip:
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
-        
-        logger.info(f"📖 Retrieved trip {trip_id}")
         trip.days = sorted(trip.days, key=lambda x: x.day_number)
         for day in trip.days:
             day.activities = sorted(day.activities, key=lambda x: x.order)
         return trip
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -125,13 +148,17 @@ async def get_trip(trip_id: int, db: Session = Depends(get_db)):
 async def update_trip(
     trip_id: int,
     trip_update: TripUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Update trip metadata (dates, budget, preferences, etc.)
     """
     try:
-        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        trip = db.query(Trip).filter(
+            Trip.id == trip_id,
+            Trip.user_id == current_user.id  # OWNERSHIP CHECK
+        ).first()
         
         if not trip:
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
@@ -157,7 +184,8 @@ async def update_trip(
 @router.post("/{trip_id}/favorite", response_model=dict)
 async def toggle_favorite(
     trip_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Toggle favorite status for a trip
@@ -173,7 +201,10 @@ async def toggle_favorite(
     - message: Confirmation message
     """
     try:
-        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        trip = db.query(Trip).filter(
+            Trip.id == trip_id,
+            Trip.user_id == current_user.id  # OWNERSHIP CHECK
+        ).first()
         
         if not trip:
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
@@ -204,51 +235,16 @@ async def toggle_favorite(
         )
 
 
-@router.get("/favorites", response_model=List[TripListResponse])
-async def get_favorite_trips(
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    db: Session = Depends(get_db)
-):
-    """
-    Get all favorite trips
-    
-    **What it does:**
-    1. Queries trips where is_favorite = true
-    2. Returns list of favorite trips
-    
-    **Returns:**
-    - List of favorite trips
-    """
-    try:
-        query = db.query(Trip).filter(Trip.is_favorite == True)
-        
-        # Apply user filter if provided
-        if user_id is not None:
-            query = query.filter(Trip.user_id == user_id)
-        
-        # Order by updated_at descending (most recently favorited first)
-        query = query.order_by(Trip.updated_at.desc())
-        
-        # Pagination
-        trips = query.offset(skip).limit(limit).all()
-        
-        logger.info(f"⭐ Listed {len(trips)} favorite trips")
-        return trips
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to list favorite trips: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list favorite trips: {str(e)}")
-
-
 @router.delete("/{trip_id}", status_code=204)
-async def delete_trip(trip_id: int, db: Session = Depends(get_db)):
+async def delete_trip(trip_id: int, db: Session = Depends(get_db),current_user: User = Depends(get_current_user)):
     """
     Delete trip and all associated days/activities
     """
     try:
-        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        trip = db.query(Trip).filter(
+            Trip.id == trip_id,
+            Trip.user_id == current_user.id  # OWNERSHIP CHECK
+        ).first()
         
         if not trip:
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
@@ -267,7 +263,7 @@ async def delete_trip(trip_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to delete trip: {str(e)}")
 
 @router.post("/{trip_id}/plan", response_model=TripResponse)
-async def generate_itinerary(trip_id: int, db: Session = Depends(get_db)):
+async def generate_itinerary(trip_id: int, db: Session = Depends(get_db),current_user: User = Depends(get_current_user)):
     """
     Generate AI-powered itinerary for a trip
     
@@ -286,7 +282,10 @@ async def generate_itinerary(trip_id: int, db: Session = Depends(get_db)):
     """
     try:
         # Check if trip exists
-        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        trip = db.query(Trip).filter(
+            Trip.id == trip_id,
+            Trip.user_id == current_user.id  # OWNERSHIP CHECK
+        ).first()
         if not trip:
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
         
@@ -322,180 +321,61 @@ async def generate_itinerary(trip_id: int, db: Session = Depends(get_db)):
             detail=f"Failed to generate itinerary: {str(e)}"
         )
 
-@router.get("/activities/{activity_id}/explain")
-async def explain_activity_choice(
-    activity_id: int,
-    force_refresh: bool = Query(False, description="Force regenerate explanation"),
-    db: Session = Depends(get_db)
+# Add this model at the top with other models
+class EmailItineraryRequest(BaseModel):
+    email: EmailStr
+    include_pdf: bool = True
+
+# Add this endpoint with your other trip endpoints
+@router.post("/{trip_id}/email", response_model=dict)
+def email_trip_itinerary(
+    trip_id: int,
+    request: EmailItineraryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Explain why an activity was recommended
-    
-    **Caching:**
-    - Explanations are cached for 7 days
-    - Use force_refresh=true to regenerate
-
-    **What it does:**
-    1. Checks for cached explanation
-    2. If cache valid, returns immediately
-    3. Otherwise generates new explanation via Gemini
-    4. Caches result for future requests
-    
-    **Returns:**
-    - explanation: 2-4 sentence explanation
-    - sources: List of travel guide sources used
-    - has_sources: Whether source references were available
-    - cached: Whether this response came from cache
-    - generated_at: Unix timestamp of generation
+    Send trip itinerary via email
     """
+    # Get trip
+    trip = db.query(Trip).filter(
+        Trip.id == trip_id,
+        Trip.user_id == current_user.id  # OWNERSHIP CHECK
+    ).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    
     try:
-        from app.ai.explanations import explain_activity
-        
-        result = await explain_activity(activity_id, db,force_refresh)
-        
-        if result.get("cached"):
-            logger.info(f"⚡ Returned cached explanation for activity {activity_id}")
-        else:
-            logger.info(f"✅ Generated new explanation for activity {activity_id}")
-        
-        return result
-        
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error(f"❌ Explanation generation failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate explanation: {str(e)}"
+        # Send email (without PDF for now - we'll add PDF generation later)
+        result = EmailService.send_itinerary_email(
+            trip=trip,
+            recipient_email=request.email,
+            pdf_bytes=None  # We'll add PDF generation in next step
         )
-
-@router.get("/activities/{activity_id}/photos", response_model=ActivityPhotoResponse)
-async def get_activity_photos_endpoint(
-    activity_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Fetch photos for a specific activity using Google Images (SerpAPI).
-    
-    **Priority chain:**
-    1. In-memory cache (7-day TTL) → instant response
-    2. SerpAPI Google Images → real tourist attraction photos
-    3. Wikimedia Commons fallback
-    4. Unsplash generic fallback
-    5. Placeholder if all fail
-
-    **Returns:**
-    - photos: List of photo objects with url, thumbnail_url, attribution
-    - source: Which provider returned the photos
-    - cached: Whether response came from cache
-    """
-    try:
-        activity = db.query(Activity).filter(Activity.id == activity_id).first()
-
-        if not activity:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
-
-        # Build location string: prefer specific location field, fall back to address
-        location = activity.location or activity.address or ""
-
-        result = await get_activity_photos(activity.title, location)
-
-        logger.info(
-            f"📸 Photos for activity '{activity.title}': "
-            f"{len(result['photos'])} photos from {result['source']} "
-            f"(cached: {result['cached']})"
-        )
-
-        return ActivityPhotoResponse(
-            activity_id=activity_id,
-            activity_title=activity.title,
-            photos=result["photos"],
-            source=result["source"],
-            cached=result["cached"]
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to fetch photos for activity {activity_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch activity photos: {str(e)}"
-        )
-
-@router.delete("/activities/{activity_id}", response_model=ActivityDeleteResponse)
-async def delete_activity(
-    activity_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Delete a specific activity from a day
-    
-    **What it does:**
-    1. Finds the activity by ID
-    2. Deletes it from database
-    3. Re-orders remaining activities in the day
-    
-    **Returns:**
-    - Confirmation message
-    - Deleted activity ID
-    - Count of remaining activities in that day
-    """
-    try:
-        # Get activity
-        activity = db.query(Activity).filter(Activity.id == activity_id).first()
-        
-        if not activity:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
-        
-        trip_day_id = activity.trip_day_id
-        deleted_order = activity.order
-        
-        # Delete activity
-        db.delete(activity)
-        db.flush()
-        
-        # Re-order remaining activities in the day
-        remaining_activities = db.query(Activity).filter(
-            Activity.trip_day_id == trip_day_id,
-            Activity.order > deleted_order
-        ).all()
-        
-        for act in remaining_activities:
-            act.order -= 1
-        
-        db.commit()
-        
-        # Count remaining activities
-        remaining_count = db.query(Activity).filter(
-            Activity.trip_day_id == trip_day_id
-        ).count()
-        
-        logger.info(f"🗑️ Deleted activity {activity_id}, {remaining_count} activities remaining")
         
         return {
-            "message": "Activity deleted successfully",
-            "deleted_activity_id": activity_id,
-            "remaining_activities_count": remaining_count
+            "success": True,
+            "message": f"Itinerary sent to {request.email}",
+            "message_id": result.get("message_id")
         }
-        
-    except HTTPException:
-        raise
+    
     except Exception as e:
-        db.rollback()
-        logger.error(f"❌ Failed to delete activity {activity_id}: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to delete activity: {str(e)}"
+            detail=f"Failed to send email: {str(e)}"
         )
 
+# ─────────────────────────────────────────────
+# DAYS
+# ─────────────────────────────────────────────
 
 @router.post("/{trip_id}/days/{day_id}/reorder", response_model=dict)
 async def reorder_activities(
     trip_id: int,
     day_id: int,
     reorder_request: ActivityReorderRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Reorder activities within a specific day
@@ -514,7 +394,10 @@ async def reorder_activities(
     """
     try:
         # Verify trip exists
-        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        trip = db.query(Trip).filter(
+            Trip.id == trip_id,
+            Trip.user_id == current_user.id  # OWNERSHIP CHECK
+        ).first()
         if not trip:
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
         
@@ -586,13 +469,13 @@ async def reorder_activities(
             detail=f"Failed to reorder activities: {str(e)}"
         )
 
-
 @router.post("/{trip_id}/days/{day_id}/replan", response_model=TripResponse)
 async def replan_day(
     trip_id: int,
     day_id: int,
     replan_request: DayReplanRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Re-plan a specific day with new preferences
@@ -613,7 +496,10 @@ async def replan_day(
     """
     try:
         # Verify trip exists
-        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        trip = db.query(Trip).filter(
+            Trip.id == trip_id,
+            Trip.user_id == current_user.id  # OWNERSHIP CHECK
+        ).first()
         if not trip:
             raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
         
@@ -637,14 +523,11 @@ async def replan_day(
         
         # Create planner agent
         planner = create_planner_agent(db)
-        
         # Fetch weather for this specific day
         weather_forecast = await planner._fetch_weather(trip)
         weather_data = planner._get_day_weather(weather_forecast, day.date)
-        
         # Calculate budget
         budget_per_day = planner._calculate_daily_budget(trip)
-        
         # Merge preferences
         original_prefs = trip.preferences or {}
         merged_preferences = {
@@ -739,12 +622,200 @@ async def replan_day(
             detail=f"Failed to re-plan day: {str(e)}"
         )
 
+# ─────────────────────────────────────────────
+# ACTIVITIES
+# Note: /activities/{id} routes have no trip_id in path,
+# so we verify ownership via the activity→day→trip chain
+# ─────────────────────────────────────────────
+def _get_activity_and_verify_owner(activity_id: int, user_id: int, db: Session) -> Activity:
+    """Helper: fetch activity and verify it belongs to the current user's trip"""
+    activity = (
+        db.query(Activity)
+        .join(TripDay, Activity.trip_day_id == TripDay.id)
+        .join(Trip, TripDay.trip_id == Trip.id)
+        .filter(Activity.id == activity_id, Trip.user_id == user_id)
+        .first()
+    )
+    if not activity:
+        raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+    return activity
+
+@router.get("/activities/{activity_id}/explain")
+async def explain_activity_choice(
+    activity_id: int,
+    force_refresh: bool = Query(False, description="Force regenerate explanation"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Explain why an activity was recommended
+    
+    **Caching:**
+    - Explanations are cached for 7 days
+    - Use force_refresh=true to regenerate
+
+    **What it does:**
+    1. Checks for cached explanation
+    2. If cache valid, returns immediately
+    3. Otherwise generates new explanation via Gemini
+    4. Caches result for future requests
+    
+    **Returns:**
+    - explanation: 2-4 sentence explanation
+    - sources: List of travel guide sources used
+    - has_sources: Whether source references were available
+    - cached: Whether this response came from cache
+    - generated_at: Unix timestamp of generation
+    """
+    try:
+        _get_activity_and_verify_owner(activity_id, current_user.id, db)  # OWNERSHIP CHECK
+        from app.ai.explanations import explain_activity
+        
+        result = await explain_activity(activity_id, db,force_refresh)
+        
+        if result.get("cached"):
+            logger.info(f"⚡ Returned cached explanation for activity {activity_id}")
+        else:
+            logger.info(f"✅ Generated new explanation for activity {activity_id}")
+        
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"❌ Explanation generation failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate explanation: {str(e)}"
+        )
+
+@router.get("/activities/{activity_id}/photos", response_model=ActivityPhotoResponse)
+async def get_activity_photos_endpoint(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch photos for a specific activity using Google Images (SerpAPI).
+    
+    **Priority chain:**
+    1. In-memory cache (7-day TTL) → instant response
+    2. SerpAPI Google Images → real tourist attraction photos
+    3. Wikimedia Commons fallback
+    4. Unsplash generic fallback
+    5. Placeholder if all fail
+
+    **Returns:**
+    - photos: List of photo objects with url, thumbnail_url, attribution
+    - source: Which provider returned the photos
+    - cached: Whether response came from cache
+    """
+    try:
+        activity = _get_activity_and_verify_owner(activity_id, current_user.id, db)  # OWNERSHIP CHECK
+        if not activity:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+
+        # Build location string: prefer specific location field, fall back to address
+        location = activity.location or activity.address or ""
+
+        result = await get_activity_photos(activity.title, location)
+
+        logger.info(
+            f"📸 Photos for activity '{activity.title}': "
+            f"{len(result['photos'])} photos from {result['source']} "
+            f"(cached: {result['cached']})"
+        )
+
+        return ActivityPhotoResponse(
+            activity_id=activity_id,
+            activity_title=activity.title,
+            photos=result["photos"],
+            source=result["source"],
+            cached=result["cached"]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch photos for activity {activity_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch activity photos: {str(e)}"
+        )
+
+@router.delete("/activities/{activity_id}", response_model=ActivityDeleteResponse)
+async def delete_activity(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a specific activity from a day
+    
+    **What it does:**
+    1. Finds the activity by ID
+    2. Deletes it from database
+    3. Re-orders remaining activities in the day
+    
+    **Returns:**
+    - Confirmation message
+    - Deleted activity ID
+    - Count of remaining activities in that day
+    """
+    try:
+        # Get activity
+        activity = _get_activity_and_verify_owner(activity_id, current_user.id, db)  # OWNERSHIP CHECK
+        if not activity:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        
+        trip_day_id = activity.trip_day_id
+        deleted_order = activity.order
+        
+        # Delete activity
+        db.delete(activity)
+        db.flush()
+        
+        # Re-order remaining activities in the day
+        remaining_activities = db.query(Activity).filter(
+            Activity.trip_day_id == trip_day_id,
+            Activity.order > deleted_order
+        ).all()
+        
+        for act in remaining_activities:
+            act.order -= 1
+        
+        db.commit()
+        
+        # Count remaining activities
+        remaining_count = db.query(Activity).filter(
+            Activity.trip_day_id == trip_day_id
+        ).count()
+        
+        logger.info(f"🗑️ Deleted activity {activity_id}, {remaining_count} activities remaining")
+        
+        return {
+            "message": "Activity deleted successfully",
+            "deleted_activity_id": activity_id,
+            "remaining_activities_count": remaining_count
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to delete activity {activity_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete activity: {str(e)}"
+        )
+
 @router.patch("/activities/{activity_id}", response_model=dict)
 async def update_activity(
     activity_id: int,
     update_data: ActivityUpdate,
     auto_adjust_subsequent: bool = Query(True, description="Auto-adjust subsequent activity times"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Update activity details (title, times)
@@ -770,7 +841,7 @@ async def update_activity(
     """
     try:
         # Get activity
-        activity = db.query(Activity).filter(Activity.id == activity_id).first()
+        activity = _get_activity_and_verify_owner(activity_id, current_user.id, db)  # OWNERSHIP CHECK
         
         if not activity:
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
@@ -891,43 +962,3 @@ async def update_activity(
             detail=f"Failed to update activity: {str(e)}"
         )
     
-# Add this model at the top with other models
-class EmailItineraryRequest(BaseModel):
-    email: EmailStr
-    include_pdf: bool = True
-
-
-# Add this endpoint with your other trip endpoints
-@router.post("/{trip_id}/email", response_model=dict)
-def email_trip_itinerary(
-    trip_id: int,
-    request: EmailItineraryRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Send trip itinerary via email
-    """
-    # Get trip
-    trip = db.query(Trip).filter(Trip.id == trip_id).first()
-    if not trip:
-        raise HTTPException(status_code=404, detail="Trip not found")
-    
-    try:
-        # Send email (without PDF for now - we'll add PDF generation later)
-        result = EmailService.send_itinerary_email(
-            trip=trip,
-            recipient_email=request.email,
-            pdf_bytes=None  # We'll add PDF generation in next step
-        )
-        
-        return {
-            "success": True,
-            "message": f"Itinerary sent to {request.email}",
-            "message_id": result.get("message_id")
-        }
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to send email: {str(e)}"
-        )

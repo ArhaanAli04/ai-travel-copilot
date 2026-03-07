@@ -1,31 +1,28 @@
 """
 API routes for Chat Session Management
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 import logging
 from datetime import datetime,timezone
-
 from app.services.chat_service import chat_service
 from app.models.chat_session import (
-    ChatSession,
     ChatMessage,
     CreateSessionRequest,
     UpdateSessionRequest,
     AddMessageRequest,
     ChatSessionResponse,
     ChatSessionListResponse,
-    Location,
-    UserPreferences
 )
+from app.core.dependencies import get_current_user  # ← shared dependency
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["Chat Sessions"])
 
-
 @router.post("/sessions", response_model=ChatSessionResponse)
-async def create_chat_session(request: CreateSessionRequest):
+async def create_chat_session(request: CreateSessionRequest,current_user: User = Depends(get_current_user),):
     """
     Create a new chat session
     
@@ -41,7 +38,8 @@ async def create_chat_session(request: CreateSessionRequest):
     """
     try:
         session = await chat_service.create_session(
-            user_id=request.user_id,
+            user_id=str(current_user.id),
+            clerk_id=current_user.clerk_id,
             city=request.city,
             location=request.location.dict(),
             title=request.title
@@ -56,11 +54,10 @@ async def create_chat_session(request: CreateSessionRequest):
         logger.error(f"Error creating chat session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/sessions", response_model=ChatSessionListResponse)
 async def get_chat_sessions(
-    user_id: str = Query(..., description="User ID"),
-    limit: int = Query(50, description="Maximum number of sessions", ge=1, le=100)
+    limit: int = Query(50, description="Maximum number of sessions", ge=1, le=100),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all chat sessions for a user
@@ -72,8 +69,9 @@ async def get_chat_sessions(
     """
     try:
         sessions = await chat_service.get_user_sessions(
-            user_id=user_id,
-            limit=limit
+            user_id=str(current_user.id),
+            limit=limit,
+            clerk_id=current_user.clerk_id,
         )
         
         return ChatSessionListResponse(
@@ -85,9 +83,8 @@ async def get_chat_sessions(
         logger.error(f"Error fetching chat sessions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/sessions/{session_id}", response_model=ChatSessionResponse)
-async def get_chat_session(session_id: str):
+async def get_chat_session(session_id: str,current_user: User = Depends(get_current_user),):
     """
     Get a specific chat session by ID
     
@@ -98,7 +95,8 @@ async def get_chat_session(session_id: str):
         
         if not session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-        
+        if session.user_id != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Not your session")
         return ChatSessionResponse(
             session=session,
             message="Success"
@@ -112,7 +110,11 @@ async def get_chat_session(session_id: str):
 
 
 @router.put("/sessions/{session_id}", response_model=ChatSessionResponse)
-async def update_chat_session(session_id: str, request: UpdateSessionRequest):
+async def update_chat_session(
+    session_id: str, 
+    request: UpdateSessionRequest,
+    current_user: User = Depends(get_current_user),
+    ):
     """
     Update chat session (currently only title)
     
@@ -128,7 +130,8 @@ async def update_chat_session(session_id: str, request: UpdateSessionRequest):
         session = await chat_service.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-        
+        if session.user_id != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Not your session")
         # Update title if provided
         if request.title:
             success = await chat_service.update_session_title(session_id, request.title)
@@ -162,7 +165,11 @@ async def update_chat_session(session_id: str, request: UpdateSessionRequest):
 
 
 @router.post("/sessions/{session_id}/messages", response_model=ChatSessionResponse)
-async def add_message_to_session(session_id: str, request: AddMessageRequest):
+async def add_message_to_session(
+    session_id: str,
+    request: AddMessageRequest,
+    current_user: User = Depends(get_current_user),
+    ):
     """
     Add a message to a chat session
     
@@ -193,7 +200,8 @@ async def add_message_to_session(session_id: str, request: AddMessageRequest):
         session = await chat_service.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-        
+        if session.user_id != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Not your session")
         # Create message object
         message = ChatMessage(
             id=f"{session_id}_{len(session.messages)}",
@@ -227,17 +235,20 @@ async def add_message_to_session(session_id: str, request: AddMessageRequest):
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_chat_session(session_id: str):
+async def delete_chat_session(session_id: str, current_user: User = Depends(get_current_user)):
     """
     Delete a chat session
     
     This permanently removes the session and all its messages
     """
     try:
-        success = await chat_service.delete_session(session_id)
-        
-        if not success:
+        session = await chat_service.get_session(session_id)
+        if not session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        if session.user_id != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Not your session")
+
+        await chat_service.delete_session(session_id)
         
         return {
             "message": "Session deleted successfully",

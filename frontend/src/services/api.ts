@@ -8,7 +8,6 @@ import type {
   GenerateMessageRequest,
 } from '../types/disruption';
 import type { ActivityPhoto } from '../types/local-discovery';
-import { useAuth } from '@clerk/react';
 const draftGenerationCache = new Map<number, Promise<{ drafts: DraftMessage[] }>>();
 // Base API URL (update if your backend runs on different port)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -172,16 +171,14 @@ export const tripApi = {
     return response.data;
   },
   // List all trips (alias for better naming)
-  getAllTrips: async (userId?: number): Promise<Trip[]> => {
-    const params = userId ? { user_id: userId } : {};
-    const response = await api.get('/trips/', { params });
+  getAllTrips: async (): Promise<Trip[]> => {
+    const response = await api.get('/trips/');
     return response.data;
   },
 
   // List all trips
-  listTrips: async (userId?: number): Promise<Trip[]> => {
-    const params = userId ? { user_id: userId } : {};
-    const response = await api.get('/trips/', { params });
+  listTrips: async (): Promise<Trip[]> => {
+    const response = await api.get('/trips/');
     return response.data;
   },
 
@@ -207,9 +204,8 @@ export const tripApi = {
   },
 
   // NEW: Get favorite trips
-  getFavoriteTrips: async (userId?: number): Promise<Trip[]> => {
-    const params = userId ? { user_id: userId } : {};
-    const response = await api.get('/trips/favorites', { params });
+  getFavoriteTrips: async (): Promise<Trip[]> => {
+    const response = await api.get('/trips/favorites');
     return response.data;
   },
 
@@ -358,9 +354,8 @@ export const activityApi = {
 // Activity Photos
 export const activityPhotosApi = {
   getPhotos: async (activityId: number): Promise<{ photos: ActivityPhoto[]; source: string; cached: boolean }> => {
-    const response = await fetch(`${API_BASE_URL}/trips/activities/${activityId}/photos`);
-    if (!response.ok) throw new Error('Failed to fetch activity photos');
-    return response.json();
+    const response = await api.get(`/trips/activities/${activityId}/photos`);
+    return response.data;
   }
 };
 
@@ -459,9 +454,8 @@ export const disruptionApi = {
   },
 
   // List all disruption cases
-  listCases: async (userId?: number): Promise<{ total: number; cases: DisruptionCase[] }> => {
-    const params = userId ? { user_id: userId } : {};
-    const response = await api.get('/disruptions/', { params });
+  listCases: async (): Promise<{ total: number; cases: DisruptionCase[] }> => {
+    const response = await api.get('/disruptions/');
     return response.data;
   },
 

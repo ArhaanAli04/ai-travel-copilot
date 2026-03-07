@@ -8,9 +8,9 @@ import { tripApi,disruptionApi, type Trip } from '../services/api';
 import { type ChatSession } from '../types/local-discovery';
 import type { DisruptionCase } from '../types/disruption';
 import { formatRelativeTime } from '../utils/datetime';
-import { getChatSessions, getUserId } from '../services/local-discovery-api';
+import { getChatSessions } from '../services/local-discovery-api';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
-
+import { useAuth } from '@clerk/react';
 type ActiveView = 'all' | 'favorites' | 'chats' | 'cases' | null;
 
 interface UnifiedSidebarProps {
@@ -45,6 +45,7 @@ const UnifiedSidebar = ({
   const [error, setError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [cases, setCases] = useState<DisruptionCase[]>([]);
+   const { isSignedIn, isLoaded } = useAuth();
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     type: 'trip' | 'session' | 'case' | null;
@@ -58,10 +59,11 @@ const UnifiedSidebar = ({
   const isDiscovery = location.pathname.includes('local-discovery');
 
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
     fetchTrips();
     fetchSessions();
     fetchCases();
-  }, [refreshTrigger]);
+  }, [isLoaded, isSignedIn,refreshTrigger]);
 
   const fetchCases = async () => {
     try {
@@ -124,8 +126,8 @@ const UnifiedSidebar = ({
 
   const fetchSessions = async () => {
     try {
-        const userId = getUserId();
-        const data = await getChatSessions(userId);
+        
+        const data = await getChatSessions();
         setSessions(data);
     } catch (err) {
         console.error('❌ Error loading sessions:', err);
