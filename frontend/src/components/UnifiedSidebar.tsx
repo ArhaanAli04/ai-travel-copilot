@@ -42,6 +42,8 @@ const UnifiedSidebar = ({
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [favoriteTrips, setFavoriteTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+const [casesLoading, setCasesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [cases, setCases] = useState<DisruptionCase[]>([]);
@@ -66,12 +68,15 @@ const UnifiedSidebar = ({
   }, [isLoaded, isSignedIn,refreshTrigger]);
 
   const fetchCases = async () => {
+    setCasesLoading(true);
     try {
       const data = await disruptionApi.listCases();
       setCases(data.cases);
     } catch (err) {
       console.error('❌ Error loading disruption cases:', err);
-    }
+    }finally {
+    setCasesLoading(false);
+  }
   };
 
   const handleDeleteCase = async (caseId: number, e: React.MouseEvent) => {
@@ -125,13 +130,15 @@ const UnifiedSidebar = ({
   };
 
   const fetchSessions = async () => {
+    setSessionsLoading(true);
     try {
-        
         const data = await getChatSessions();
         setSessions(data);
     } catch (err) {
         console.error('❌ Error loading sessions:', err);
-    }
+    }finally {
+    setSessionsLoading(false);
+  }
     };
 
   const handleToggleFavorite = async (tripId: number, e: React.MouseEvent) => {
@@ -551,6 +558,7 @@ const UnifiedSidebar = ({
                       <>
                         <Plane className="w-12 h-12 text-[#6B7280] mx-auto mb-3" />
                         <p className="text-sm text-[#9CA3AF]">No saved trips yet</p>
+                        <p className="text-xs text-[#6B7280]">Click the plus icon next to 'All Trips' to create a new trip</p>
                       </>
                     )}
                   </div>
@@ -561,27 +569,53 @@ const UnifiedSidebar = ({
 
               {/* Cases panel */}
               {activeView === 'cases' && (
-                cases.length === 0 ? (
+                casesLoading ? (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 border-2 border-[#F97316]/30 border-t-[#F97316] rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-[#9CA3AF]">Loading cases...</p>
+                  </div>
+                ) : cases.length === 0 ? (
                   <div className="text-center py-8 px-4">
                     <AlertTriangle className="w-12 h-12 text-[#6B7280] mx-auto mb-3" />
                     <p className="text-sm text-[#9CA3AF] mb-1">No disruption cases yet</p>
                     <p className="text-xs text-[#6B7280]">Create a case on the Disruptions page</p>
+                    <button onClick={fetchCases} className="text-xs text-[#F97316] hover:underline mt-2">
+                      Refresh
+                    </button>
                   </div>
                 ) : (
-                  cases.map((c) => renderCaseCard(c))
+                  <>
+                    {cases.map((c) => renderCaseCard(c))}
+                    <button onClick={fetchCases} className="w-full text-xs text-[#F97316]/60 hover:text-[#F97316] py-2 transition-colors">
+                      ↻ Refresh cases
+                    </button>
+                  </>
                 )
               )}
 
               {/* Chat panel */}
               {activeView === 'chats' && (
-                sessions.length === 0 ? (
+                sessionsLoading ? (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 border-2 border-[#38BDF8]/30 border-t-[#38BDF8] rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-[#9CA3AF]">Loading chats...</p>
+                  </div>
+                ) : sessions.length === 0 ? (
                   <div className="text-center py-8 px-4">
                     <MessageSquare className="w-12 h-12 text-[#6B7280] mx-auto mb-3" />
                     <p className="text-sm text-[#9CA3AF] mb-1">No chat history yet</p>
                     <p className="text-xs text-[#6B7280]">Start a new conversation!</p>
+                    <button onClick={fetchSessions} className="text-xs text-[#38BDF8] hover:underline mt-2">
+                      Refresh
+                    </button>
                   </div>
                 ) : (
-                  sessions.map((session) => renderSessionCard(session))
+                  <>
+                    {sessions.map((session) => renderSessionCard(session))}
+                    <button onClick={fetchSessions} className="w-full text-xs text-[#38BDF8]/60 hover:text-[#38BDF8] py-2 transition-colors">
+                      ↻ Refresh chats
+                    </button>
+                  </>
                 )
               )}
 

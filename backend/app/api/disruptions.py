@@ -9,6 +9,8 @@ import logging
 from app.api.flights import get_airport_code
 import re
 from app.core.postgres import get_db
+from app.core.dependencies import get_current_user  # ← ADD
+from app.models.user import User    
 from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity, OptionType, DisruptionChatMessage
 from app.schemas.disruption import (
     DisruptionCaseCreate,
@@ -98,7 +100,8 @@ def _weather_severity(code: int, precip: float) -> str:
         return "medium"
     return "low"
 
-@router.get("/api-usage")  # ✅ This will be: /api/disruptions/api-usage
+# ===== Public utility endpoint =====
+@router.get("/api-usage")  # 
 def get_api_usage():
     """
     Get API usage statistics for disruption service
@@ -121,12 +124,14 @@ def get_api_usage():
         },
         "note": "Counter resets when server restarts"
     }
+
 # ===== CRUD Operations =====
 
 @router.post("/", response_model=DisruptionCaseResponse, status_code=status.HTTP_201_CREATED)
 async def create_disruption_case(
     case_data: DisruptionCaseCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create a new disruption case
@@ -154,6 +159,7 @@ async def create_disruption_case(
 
         # Create case
         db_case = DisruptionCase(
+            user_id=current_user.id,
             flight_number=case_data.flight_number.upper(),
             airline=case_data.airline,
             origin=origin_iata,
@@ -212,7 +218,8 @@ async def create_disruption_case(
 @router.get("/{case_id}", response_model=DisruptionCaseWithOptions)
 def get_disruption_case(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get a specific disruption case with options
@@ -231,7 +238,8 @@ def get_disruption_case(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:  # ← ownership check
+        raise HTTPException(status_code=403, detail="Not your case")
     return case
 
 
@@ -239,8 +247,8 @@ def get_disruption_case(
 def list_disruption_cases(
     skip: int = 0,
     limit: int = 10,
-    user_id: int = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List disruption cases
@@ -249,10 +257,10 @@ def list_disruption_cases(
     - Optionally filter by user_id
     - Ordered by created_at descending (newest first)
     """
-    query = db.query(DisruptionCase).filter(DisruptionCase.is_deleted == 0)
-    
-    if user_id:
-        query = query.filter(DisruptionCase.user_id == user_id)
+    query = db.query(DisruptionCase).filter(
+        DisruptionCase.is_deleted == 0,
+        DisruptionCase.user_id == current_user.id  # ← from JWT
+    )
     
     total = query.count()
     cases = query.order_by(DisruptionCase.created_at.desc()).offset(skip).limit(limit).all()
@@ -264,7 +272,8 @@ def list_disruption_cases(
 def update_disruption_case(
     case_id: int,
     case_update: DisruptionCaseUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update a disruption case
@@ -282,6 +291,8 @@ def update_disruption_case(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     
     # Update fields
     update_data = case_update.model_dump(exclude_unset=True)
@@ -301,7 +312,8 @@ def update_disruption_case(
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_disruption_case(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Soft delete a disruption case
@@ -319,6 +331,8 @@ def delete_disruption_case(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     
     case.is_deleted = 1
     db.commit()
@@ -330,7 +344,8 @@ def delete_disruption_case(
 @router.get("/{case_id}/weather")
 async def get_disruption_weather(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Fetch weather for disruption case origin using Open-Meteo (free)"""
     case = db.query(DisruptionCase).filter(
@@ -340,6 +355,8 @@ async def get_disruption_weather(
 
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
 
     try:
         disruption_date = case.disruption_date.date() if isinstance(case.disruption_date, datetime) else case.disruption_date
@@ -388,7 +405,8 @@ async def get_disruption_weather(
 def create_disruption_option(
     case_id: int,
     option_data: DisruptionOptionCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user), 
 ):
     """
     Create a new option for a disruption case
@@ -406,7 +424,8 @@ def create_disruption_option(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     # Create option
     db_option = DisruptionOption(**option_data.model_dump())
     db.add(db_option)
@@ -420,7 +439,8 @@ def create_disruption_option(
 @router.get("/{case_id}/options", response_model=List[DisruptionOptionResponse])
 def list_disruption_options(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all options for a disruption case
@@ -438,7 +458,8 @@ def list_disruption_options(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     options = db.query(DisruptionOption).filter(
         DisruptionOption.disruption_case_id == case_id
     ).order_by(DisruptionOption.priority_rank.desc()).all()
@@ -448,7 +469,8 @@ def list_disruption_options(
 @router.post("/{case_id}/refresh", response_model=DisruptionCaseResponse)
 async def refresh_disruption_case(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Refresh disruption case with latest flight/weather data
@@ -467,7 +489,8 @@ async def refresh_disruption_case(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     try:
         # Enrich with latest data
         case = await disruption_service.enrich_disruption_case(case, db)
@@ -486,7 +509,8 @@ async def refresh_disruption_case(
 async def explain_passenger_rights(
     case_id: int,
     request: ExplainRightsRequest = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Explain passenger rights for a disruption case
@@ -513,7 +537,8 @@ async def explain_passenger_rights(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     try:
         # Use disruption agent to explain rights
         if request:
@@ -539,11 +564,11 @@ async def explain_passenger_rights(
             detail=f"Failed to explain rights: {str(e)}"
         )
     
-
 @router.post("/{case_id}/suggest-options", response_model=SuggestOptionsResponse)
 async def suggest_disruption_options(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Generate AI-powered alternative options for a disruption case
@@ -568,7 +593,8 @@ async def suggest_disruption_options(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     try:
         # ✅ Check DB cache first — avoid Gemini call if options already exist
         existing = db.query(DisruptionOption).filter(
@@ -632,7 +658,8 @@ async def suggest_disruption_options(
 async def generate_disruption_message(
     case_id: int,
     request: GenerateMessageRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Generate professional email/message for disruption resolution
@@ -664,7 +691,8 @@ async def generate_disruption_message(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     # Get option if specified
     disruption_option = None
     if request.option_id:
@@ -735,7 +763,8 @@ async def search_alternative_flights(
     case_id: int,
     search_date: Optional[str] = None,  # YYYY-MM-DD, defaults to disruption_date
     force: bool = False,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Search alternative flights for a specific date.
@@ -750,7 +779,8 @@ async def search_alternative_flights(
 
     if not case:
         raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
-
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     try:
         from app.services.disruption_service import disruption_service
         from app.models.disruption import DisruptionOption, OptionType
@@ -906,7 +936,8 @@ from app.schemas.disruption import ChatRequest, ChatResponse
 async def chat_with_assistant(
     case_id: int,
     request: ChatRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user), 
 ):
     case = db.query(DisruptionCase).filter(
         DisruptionCase.id == case_id,
@@ -915,6 +946,8 @@ async def chat_with_assistant(
 
     if not case:
         raise HTTPException(status_code=404, detail=f"Disruption case {case_id} not found")
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
 
     try:
         # Save user message
@@ -958,7 +991,8 @@ async def chat_with_assistant(
 async def get_chat_history(
     case_id: int,
     limit: int = 50,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get chat history for a disruption case
@@ -976,7 +1010,8 @@ async def get_chat_history(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     msgs = (
         db.query(DisruptionChatMessage)
         .filter(DisruptionChatMessage.disruption_case_id == case_id)
@@ -1002,7 +1037,8 @@ async def get_chat_history(
 @router.get("/{case_id}/messages", response_model=List[DraftMessageResponse])
 def get_draft_messages(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all draft messages generated for a disruption case
@@ -1020,7 +1056,8 @@ def get_draft_messages(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Disruption case {case_id} not found"
         )
-    
+    if case.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your case")
     # Get all draft messages for this case
     from app.models.draft_message import DraftMessage
     
