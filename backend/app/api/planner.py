@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.postgres import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user,require_trip_owner,require_trip_access,require_trip_editor
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_day import TripDay
@@ -127,12 +127,7 @@ async def get_trip(trip_id: int, db: Session = Depends(get_db),current_user: Use
     Get trip details with all days and activities
     """
     try:
-        trip = db.query(Trip).filter(
-            Trip.id == trip_id,
-            Trip.user_id == current_user.id  # OWNERSHIP CHECK
-        ).first()
-        if not trip:
-            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        trip, role = require_trip_access(trip_id, current_user, db)
         trip.days = sorted(trip.days, key=lambda x: x.day_number)
         for day in trip.days:
             day.activities = sorted(day.activities, key=lambda x: x.order)
@@ -155,13 +150,7 @@ async def update_trip(
     Update trip metadata (dates, budget, preferences, etc.)
     """
     try:
-        trip = db.query(Trip).filter(
-            Trip.id == trip_id,
-            Trip.user_id == current_user.id  # OWNERSHIP CHECK
-        ).first()
-        
-        if not trip:
-            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        trip = require_trip_editor(trip_id, current_user, db)
         
         # Update only provided fields
         update_data = trip_update.model_dump(exclude_unset=True)
@@ -201,13 +190,7 @@ async def toggle_favorite(
     - message: Confirmation message
     """
     try:
-        trip = db.query(Trip).filter(
-            Trip.id == trip_id,
-            Trip.user_id == current_user.id  # OWNERSHIP CHECK
-        ).first()
-        
-        if not trip:
-            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        trip = require_trip_owner(trip_id, current_user, db)
         
         # Toggle favorite status
         trip.is_favorite = not trip.is_favorite
@@ -241,13 +224,7 @@ async def delete_trip(trip_id: int, db: Session = Depends(get_db),current_user: 
     Delete trip and all associated days/activities
     """
     try:
-        trip = db.query(Trip).filter(
-            Trip.id == trip_id,
-            Trip.user_id == current_user.id  # OWNERSHIP CHECK
-        ).first()
-        
-        if not trip:
-            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        trip = require_trip_owner(trip_id, current_user, db)
         
         db.delete(trip)
         db.commit()
@@ -282,12 +259,7 @@ async def generate_itinerary(trip_id: int, db: Session = Depends(get_db),current
     """
     try:
         # Check if trip exists
-        trip = db.query(Trip).filter(
-            Trip.id == trip_id,
-            Trip.user_id == current_user.id  # OWNERSHIP CHECK
-        ).first()
-        if not trip:
-            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        trip = require_trip_editor(trip_id, current_user, db)
         
         # Validate trip has required fields
         if not trip.destinations:
@@ -338,12 +310,7 @@ def email_trip_itinerary(
     Send trip itinerary via email
     """
     # Get trip
-    trip = db.query(Trip).filter(
-        Trip.id == trip_id,
-        Trip.user_id == current_user.id  # OWNERSHIP CHECK
-    ).first()
-    if not trip:
-        raise HTTPException(status_code=404, detail="Trip not found")
+    trip = require_trip_editor(trip_id, current_user, db)
     
     try:
         # Send email (without PDF for now - we'll add PDF generation later)
@@ -394,12 +361,7 @@ async def reorder_activities(
     """
     try:
         # Verify trip exists
-        trip = db.query(Trip).filter(
-            Trip.id == trip_id,
-            Trip.user_id == current_user.id  # OWNERSHIP CHECK
-        ).first()
-        if not trip:
-            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        trip = require_trip_editor(trip_id, current_user, db)
         
         # Verify day exists and belongs to trip
         day = db.query(TripDay).filter(
@@ -496,12 +458,7 @@ async def replan_day(
     """
     try:
         # Verify trip exists
-        trip = db.query(Trip).filter(
-            Trip.id == trip_id,
-            Trip.user_id == current_user.id  # OWNERSHIP CHECK
-        ).first()
-        if not trip:
-            raise HTTPException(status_code=404, detail=f"Trip {trip_id} not found")
+        trip = require_trip_editor(trip_id, current_user, db)
         
         # Verify day exists and belongs to trip
         day = db.query(TripDay).filter(
@@ -628,12 +585,27 @@ async def replan_day(
 # so we verify ownership via the activity→day→trip chain
 # ─────────────────────────────────────────────
 def _get_activity_and_verify_owner(activity_id: int, user_id: int, db: Session) -> Activity:
-    """Helper: fetch activity and verify it belongs to the current user's trip"""
+    """
+    Fetch activity and verify caller has at least viewer access via trip chain.
+    For mutations (delete/update), caller should also call require_trip_editor separately.
+    """
+    from app.models.collaborator import TripCollaborator, CollaboratorStatus
+
     activity = (
         db.query(Activity)
         .join(TripDay, Activity.trip_day_id == TripDay.id)
         .join(Trip, TripDay.trip_id == Trip.id)
-        .filter(Activity.id == activity_id, Trip.user_id == user_id)
+        .filter(Activity.id == activity_id)
+        .filter(
+            (Trip.user_id == user_id) |
+            (
+                db.query(TripCollaborator).filter(
+                    TripCollaborator.trip_id == Trip.id,
+                    TripCollaborator.clerk_user_id == db.query(User.clerk_id).filter(User.id == user_id).scalar_subquery(),
+                    TripCollaborator.status == CollaboratorStatus.ACCEPTED,
+                ).exists()
+            )
+        )
         .first()
     )
     if not activity:

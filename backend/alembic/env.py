@@ -17,9 +17,11 @@ from app.models.trip import Trip
 from app.models.trip_day import TripDay
 from app.models.activity import Activity
 from app.models.flight import Flight
+from app.models.airline import Airline
 from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionType, DisruptionSeverity, OptionType
 from app.models.draft_message import DraftMessage, MessageRecipientType, MessageTone
 from app.models.hotel import Hotel 
+from app.models.collaborator import TripCollaborator
 # (We'll add imports as we create models)
 
 # this is the Alembic Config object

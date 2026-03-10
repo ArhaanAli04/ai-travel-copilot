@@ -21,13 +21,21 @@ An intelligent, full-stack AI travel assistant with four core modules:
 - **Styling:** Tailwind CSS
 
 ## Project Structure
-
-ai-travel-copilot/
-├── backend/ # FastAPI application
-├── frontend/ # React/Next.js application
-├── scripts/ # Data ingestion and utility scripts
-└── docs/ # Documentation and architecture diagrams
-
+```
+   ai-travel-copilot/
+   ├── backend/ # FastAPI application
+   │   ├── app/ # Main application code
+         ├── core/ # Core application logic
+         ├── models/ # Database models
+         ├── api/ # API routes
+         ├── services/ # Business logic services
+         ├── utils/ # Utility functions
+      ├── tests/ # Test cases
+      └── requirements.txt # Python dependencies
+   ├── frontend/ # React/Next.js application
+   ├── scripts/ # Data ingestion and utility scripts
+   └── docs/ # Documentation and architecture diagrams
+```
 
 ## Setup Instructions
 
@@ -36,27 +44,23 @@ ai-travel-copilot/
 1. **Navigate to backend directory:**
    ```bash
    cd backend
-Create and activate virtual environment:
+2. **Create and activate virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+4. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your actual credentials
+5. **Run the development server:**
+   ```bash
+   uvicorn app.main:app --reload
+6. **Access the API:**
 
-bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-Install dependencies:
-
-bash
-pip install -r requirements.txt
-Configure environment variables:
-
-bash
-cp .env.example .env
-# Edit .env with your actual credentials
-Run the development server:
-
-bash
-uvicorn app.main:app --reload
-Access the API:
-
-API: http://localhost:8000
+   API: http://localhost:8000
 
 Docs: http://localhost:8000/docs
 

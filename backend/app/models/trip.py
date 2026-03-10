@@ -56,6 +56,6 @@ class Trip(Base):
     days = relationship("TripDay", back_populates="trip", cascade="all, delete-orphan")
     flights = relationship("Flight", back_populates="trip", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="trip", cascade="all, delete-orphan")
-    
+    collaborators = relationship("TripCollaborator", back_populates="trip", cascade="all, delete-orphan")
     def __repr__(self):
         return f"<Trip(id={self.id}, title='{self.title}', , user_id={self.user_id})>"
