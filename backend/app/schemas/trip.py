@@ -208,6 +208,7 @@ class TripResponse(TripBase):
     days: List[TripDayResponse] = []
     flights: List[FlightResponse] = [] 
     hotels: List[HotelResponse] = [] 
+    is_owner: bool = False
 
     @field_validator('include_hotels', 'include_flights', mode='before')
     @classmethod
@@ -229,6 +230,8 @@ class TripListResponse(BaseModel):
     traveler_count: int
     created_at: datetime
     is_favorite: bool = False
+    collaborator_count: int = 0
+    is_owner: bool = False
 
     class Config:
         from_attributes = True

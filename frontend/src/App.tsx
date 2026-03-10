@@ -5,6 +5,7 @@ import LocalDiscovery from './pages/LocalDiscovery';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
 import AuthGuard from './components/AuthGuard';
+import AcceptInvitePage from './pages/AcceptInvitePage';
 import { ErrorBoundary } from './components/ErrorBoundary'; // ✨ NEW
 import { NetworkStatus } from './components/NetworkStatus';
 // Placeholder components (keep for future)
@@ -47,6 +48,7 @@ function App() {
           {/* Public routes */}
           <Route path="/sign-in/*" element={<SignInPage />} />
           <Route path="/sign-up/*" element={<SignUpPage />} />
+          <Route path="/invites/:token/accept" element={<AcceptInvitePage />} /> 
           {/* Protected routes */}
           
           <Route path="/planner" element={<AuthGuard><Planner /></AuthGuard>} />

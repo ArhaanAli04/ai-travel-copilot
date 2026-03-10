@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2,AlertTriangle } from 'lucide-react';
+import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2,AlertTriangle,Share2 } from 'lucide-react';
+import { ShareModal } from './ShareModal';
 import {type Trip,tripApi } from '../services/api';
 import FlightSection from './FlightSection';
 import HotelSection from './HotelSection';
@@ -9,7 +10,7 @@ import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { RegenerationConfirmModal } from './RegenerationConfirmModal';
 import ExportButton from './ExportButton';
 import EmailModal from './EmailModal';
-
+import { ViewerRestrictedModal } from './ViewerRestrictedModal';
 interface TripSummaryV2Props {
   trip: Trip;
   itineraryGenerated: boolean;
@@ -39,6 +40,8 @@ export function TripSummaryV2({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showViewerModal, setShowViewerModal] = useState(false);
   const [regenerationModal, setRegenerationModal] = useState<{
     isOpen: boolean;
     changes: {
@@ -73,7 +76,6 @@ export function TripSummaryV2({
     try {
     // Close edit modal first
     setShowEditModal(false);
-    
     // Detect critical changes
     const datesChanged = Boolean(
       (updates.start_date && updates.start_date !== trip.start_date) || 
@@ -127,9 +129,13 @@ export function TripSummaryV2({
     await onUpdateTrip(updates);
     setEditLoading(false);
     
-  } catch (error) {
-    console.error('Failed to update trip:', error);
+  } catch (error:any) {
     setEditLoading(false);
+    if (error?.response?.status === 403) {     // ← ADD
+      setShowViewerModal(true);                 // ← ADD
+    } else {
+      console.error('Failed to update trip:', error);
+    }
   }
   };
 
@@ -144,9 +150,14 @@ export function TripSummaryV2({
     setShowOutdatedWarning(true); // Show warning banner
     setEditLoading(false);
     onRefreshTrip(); 
-  } catch (error) {
-    console.error('Failed to update trip:', error);
+  } catch (error: any) {
     setEditLoading(false);
+    setRegenerationModal(prev => ({ ...prev, isOpen: false }));  // ← ADD
+    if (error?.response?.status === 403) {                        // ← ADD
+      setShowViewerModal(true);                                    // ← ADD
+    } else {
+      console.error('Failed to update trip:', error);
+    }
   }
 };
 
@@ -169,9 +180,14 @@ const handleRegenerateItinerary = async () => {
     setPendingUpdates(null);
     setShowOutdatedWarning(false);
     setEditLoading(false);
-  } catch (error) {
-    console.error('Failed to regenerate itinerary:', error);
+  } catch (error: any) {
     setEditLoading(false);
+    setRegenerationModal(prev => ({ ...prev, isOpen: false }));  // ← ADD
+    if (error?.response?.status === 403) {                        // ← ADD
+      setShowViewerModal(true);                                    // ← ADD
+    } else {
+      console.error('Failed to regenerate itinerary:', error);
+    }
   }
 };
 
@@ -283,6 +299,14 @@ console.log('trip.hotels:', trip.hotels);
               <Edit2 className="w-4 h-4 text-gray-400 group-hover:text-[#60A5FA] transition-colors" />
             </button>
             
+            {/* Share Button — ADD between Edit and Delete */}
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="p-2.5 rounded-lg bg-white/5 hover:bg-[#38BDF8]/10 border border-[rgba(148,163,184,0.2)] hover:border-[#38BDF8]/50 transition-all group cursor-pointer"
+              title="Share Trip"
+            >
+              <Share2 className="w-4 h-4 text-gray-400 group-hover:text-[#38BDF8] transition-colors" />
+            </button>
             {/* Delete Button */}
             <button
               onClick={() => setShowDeleteModal(true)}
@@ -438,6 +462,18 @@ console.log('trip.hotels:', trip.hotels);
         onSend={handleSendEmail}
         tripTitle={trip.title}
         />
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        tripId={trip.id}
+        tripTitle={trip.title}
+        isOwner={trip.is_owner ?? false}
+      />
+      <ViewerRestrictedModal
+        isOpen={showViewerModal}
+        onClose={() => setShowViewerModal(false)}
+      />
+
     </div>
   );
 }

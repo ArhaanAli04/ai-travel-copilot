@@ -4,6 +4,7 @@ import { Calendar, Clock, DollarSign, MapPin, HelpCircle, Trash2, ChevronUp, Che
 import { ExplanationModal } from './ExplanationModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { ReplanDayModal } from './ReplanDayModal';
+import { ViewerRestrictedModal } from './ViewerRestrictedModal';
 import type { ActivityExplanation } from '../services/api';
 import { EditableActivityField } from './EditableActivityField';
 import { ActivityPhotoSection } from './ActivityPhotoSection';
@@ -14,6 +15,7 @@ interface ItineraryViewProps {
 }
 
 const ItineraryView = ({ trip, onTripUpdate }: ItineraryViewProps) => {
+  const [showViewerModal, setShowViewerModal] = useState(false);
   const [explanationModal, setExplanationModal] = useState<{
     isOpen: boolean;
     activityId: number | null;
@@ -97,9 +99,14 @@ const ItineraryView = ({ trip, onTripUpdate }: ItineraryViewProps) => {
         loading: false,
       });
       await onTripUpdate();
-    } catch (error) {
-      console.error('Failed to delete activity:', error);
-      setDeleteModal((prev) => ({ ...prev, loading: false }));
+    } catch (error: any) {
+      if (error?.response?.status === 403) {                          // ← ADD
+        setDeleteModal({ isOpen: false, activityId: null, activityTitle: '', loading: false });
+        setShowViewerModal(true);                                      // ← ADD
+      } else {
+        console.error('Failed to delete activity:', error);
+        setDeleteModal((prev) => ({ ...prev, loading: false }));
+      }
     }
   };
 
@@ -135,8 +142,12 @@ const ItineraryView = ({ trip, onTripUpdate }: ItineraryViewProps) => {
 
         await activityApi.reorderActivities(trip.id, dayId, activityIds);
         await onTripUpdate();
-    } catch (error) {
+    } catch (error : any) {
+         if (error?.response?.status === 403) {                          // ← ADD
+          setShowViewerModal(true);                                      // ← ADD
+      } else {
         console.error('Failed to reorder activities:', error);
+      }
     } finally {
         setMovingActivity(null);
     }
@@ -158,9 +169,14 @@ const ItineraryView = ({ trip, onTripUpdate }: ItineraryViewProps) => {
         loading: false,
       });
       await onTripUpdate();
-    } catch (error) {
-      console.error('Failed to replan day:', error);
-      setReplanModal((prev) => ({ ...prev, loading: false }));
+    } catch (error: any) {
+      if (error?.response?.status === 403) {                          // ← ADD
+        setReplanModal({ isOpen: false, dayId: null, dayNumber: 0, city: '', loading: false });
+        setShowViewerModal(true);                                      // ← ADD
+      } else {
+        console.error('Failed to replan day:', error);
+        setReplanModal((prev) => ({ ...prev, loading: false }));
+      }
     }
   };
 
@@ -182,9 +198,13 @@ const ItineraryView = ({ trip, onTripUpdate }: ItineraryViewProps) => {
     }
     
     await onTripUpdate();
-  } catch (error) {
-    console.error('Failed to update activity:', error);
-    throw error;
+  } catch (error: any) {
+    if (error?.response?.status === 403) {                          // ← ADD
+        setShowViewerModal(true);                                      // ← ADD
+      } else {
+        console.error('Failed to update activity:', error);
+        throw error;
+      }
   }
 };
 
@@ -571,6 +591,11 @@ const validateTitle = (title: string): string | null => {
         city={replanModal.city}
         loading={replanModal.loading}
       />
+      {/* Viewer Restricted Modal */}
+      <ViewerRestrictedModal                                           // ← ADD
+        isOpen={showViewerModal}                                       // ← ADD
+        onClose={() => setShowViewerModal(false)}                      // ← ADD
+      />   
     </div>
   );
 };

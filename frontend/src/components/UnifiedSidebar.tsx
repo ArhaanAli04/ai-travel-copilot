@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Plane, Star, Calendar, MapPin, Trash2,
-  ChevronRight, MessageSquare, Plus, Clock, AlertTriangle
+  ChevronRight, MessageSquare, Plus, Clock, AlertTriangle,Users
 } from 'lucide-react';
 import { tripApi,disruptionApi, type Trip } from '../services/api';
 import { type ChatSession } from '../types/local-discovery';
@@ -206,6 +206,14 @@ const [casesLoading, setCasesLoading] = useState(false);
           <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="truncate">{trip.destinations.join(', ')}</span>
         </div>
+        {trip.collaborator_count && trip.collaborator_count > 0 ? (
+          <div className="flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 flex-shrink-0 text-[#38BDF8]" />
+            <span className="text-[#38BDF8]">
+              {trip.collaborator_count} collaborator{trip.collaborator_count > 1 ? 's' : ''}
+            </span>
+          </div>
+        ) : null}
       </div>
       <div className="absolute top-3 right-3 flex items-center gap-1">
         <button

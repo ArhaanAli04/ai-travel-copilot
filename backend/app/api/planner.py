@@ -12,6 +12,7 @@ from app.schemas.trip import (
     ActivityReorderRequest, DayReplanRequest, ActivityDeleteResponse ,ActivityUpdate,
     ActivityPhotoResponse
 )
+from app.models.collaborator import TripCollaborator, CollaboratorStatus
 import logging
 from app.ai.planner_agent import create_planner_agent
 from datetime import time as time_type, datetime,timedelta
@@ -110,12 +111,30 @@ async def list_trips(
     List all trips (with optional filtering)
     """
     try:
-        query = db.query(Trip).filter(Trip.user_id == current_user.id)  # FILTER by owner
+       # Get shared trip IDs as a plain list
+        shared_trip_ids = [
+            row.trip_id for row in db.query(TripCollaborator.trip_id).filter(
+                TripCollaborator.clerk_user_id == current_user.clerk_id,
+                TripCollaborator.status == CollaboratorStatus.ACCEPTED
+            ).all()
+        ]
+
+        # Single query using OR — avoids UNION on JSON columns
+        query = db.query(Trip).filter(
+            (Trip.user_id == current_user.id) |
+            (Trip.id.in_(shared_trip_ids))
+        )
+
         if status:
             query = query.filter(Trip.status == status)
         trips = query.order_by(Trip.created_at.desc()).offset(skip).limit(limit).all()
-        logger.info(f"📋 Listed {len(trips)} trips for user {current_user.id}")
-        return trips
+        logger.info(f"📋 Listed {len(trips)} trips (owned + shared) for user {current_user.id}")
+        result = []
+        for trip in trips:
+            trip_data = TripListResponse.model_validate(trip)
+            trip_data.is_owner = (trip.user_id == current_user.id)
+            result.append(trip_data)
+        return result
         
     except Exception as e:
         logger.error(f"❌ Failed to list trips: {e}")
@@ -131,7 +150,10 @@ async def get_trip(trip_id: int, db: Session = Depends(get_db),current_user: Use
         trip.days = sorted(trip.days, key=lambda x: x.day_number)
         for day in trip.days:
             day.activities = sorted(day.activities, key=lambda x: x.order)
-        return trip
+        trip_data = TripResponse.model_validate(trip)
+        trip_data.is_owner = (trip.user_id == current_user.id)
+        return trip_data
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -739,7 +761,8 @@ async def delete_activity(
         activity = _get_activity_and_verify_owner(activity_id, current_user.id, db)  # OWNERSHIP CHECK
         if not activity:
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
-        
+        trip_day = db.query(TripDay).filter(TripDay.id == activity.trip_day_id).first()
+        require_trip_editor(trip_day.trip_id, current_user, db)
         trip_day_id = activity.trip_day_id
         deleted_order = activity.order
         
@@ -817,7 +840,8 @@ async def update_activity(
         
         if not activity:
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
-        
+        trip_day = db.query(TripDay).filter(TripDay.id == activity.trip_day_id).first()
+        require_trip_editor(trip_day.trip_id, current_user, db)
         # Store original times for adjustment calculation
         original_start = activity.start_time
         original_end = activity.end_time

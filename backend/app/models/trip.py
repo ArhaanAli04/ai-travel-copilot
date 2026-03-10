@@ -57,5 +57,12 @@ class Trip(Base):
     flights = relationship("Flight", back_populates="trip", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="trip", cascade="all, delete-orphan")
     collaborators = relationship("TripCollaborator", back_populates="trip", cascade="all, delete-orphan")
+
+    @property
+    def collaborator_count(self) -> int:
+        """Count of accepted collaborators for this trip"""
+        if not self.collaborators:
+            return 0
+        return sum(1 for c in self.collaborators if c.status.value == "accepted")
     def __repr__(self):
         return f"<Trip(id={self.id}, title='{self.title}', , user_id={self.user_id})>"

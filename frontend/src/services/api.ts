@@ -7,6 +7,22 @@ import type {
   DraftMessage,
   GenerateMessageRequest,
 } from '../types/disruption';
+import type {
+  Collaborator,
+  CollaboratorListResponse,
+  InvitePreviewResponse,
+  AcceptInviteResponse,
+  CollaboratorRole,
+} from '../types/collaborator';
+
+// Re-export for convenience
+export type {
+  Collaborator,
+  CollaboratorListResponse,
+  InvitePreviewResponse,
+  AcceptInviteResponse,
+  CollaboratorRole,
+};
 import type { ActivityPhoto } from '../types/local-discovery';
 const draftGenerationCache = new Map<number, Promise<{ drafts: DraftMessage[] }>>();
 // Base API URL (update if your backend runs on different port)
@@ -54,6 +70,8 @@ export interface Trip {
   created_at: string;
   updated_at?: string;
   is_favorite: boolean;
+  collaborator_count?: number;
+  is_owner?: boolean;
   days: TripDay[];
   flights?: Flight[];
   include_hotels: boolean;
@@ -622,5 +640,51 @@ export const disruptionApi = {
     return response.data;
   },
 };
+
+export const collaboratorApi = {
+  // Invite collaborator by email
+  inviteCollaborator: async (
+    tripId: number,
+    email: string,
+    role: CollaboratorRole
+  ): Promise<Collaborator> => {
+    const response = await api.post(`/trips/${tripId}/collaborators/invite`, { email, role });
+    return response.data;
+  },
+
+  // List all collaborators for a trip
+  getCollaborators: async (tripId: number): Promise<CollaboratorListResponse> => {
+    const response = await api.get(`/trips/${tripId}/collaborators`);
+    return response.data;
+  },
+
+  // Remove a collaborator
+  removeCollaborator: async (tripId: number, collabId: number): Promise<void> => {
+    await api.delete(`/trips/${tripId}/collaborators/${collabId}`);
+  },
+
+  // Change collaborator role
+  changeRole: async (
+    tripId: number,
+    collabId: number,
+    role: CollaboratorRole
+  ): Promise<Collaborator> => {
+    const response = await api.patch(`/trips/${tripId}/collaborators/${collabId}`, { role });
+    return response.data;
+  },
+
+  // Get invite preview — public, no auth required
+  getInvitePreview: async (token: string): Promise<InvitePreviewResponse> => {
+    const response = await api.get(`/invites/${token}`);
+    return response.data;
+  },
+
+  // Accept invite — requires auth
+  acceptInvite: async (token: string): Promise<AcceptInviteResponse> => {
+    const response = await api.post(`/invites/${token}/accept`);
+    return response.data;
+  },
+};
+
 
 export default api;

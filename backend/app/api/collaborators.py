@@ -93,7 +93,7 @@ def list_collaborators(
     current_user: User = Depends(get_current_user),
 ):
     """List all collaborators for a trip. Owner only."""
-    require_trip_owner(trip_id, current_user, db)
+    require_trip_access(trip_id, current_user, db)
 
     collabs = db.query(TripCollaborator).filter(
         TripCollaborator.trip_id == trip_id
