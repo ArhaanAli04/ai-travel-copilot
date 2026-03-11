@@ -21,6 +21,7 @@ from app.core.postgres import test_connection as test_postgres
 from app.core.mongo import connect_to_mongo, close_mongo_connection
 from app.core.qdrant import connect_to_qdrant
 from app.api import planner,flights,guides,disruptions,admin,local_discovery,chat,health,hotels, auth,collaborators
+from app.api import ws as ws_module
 from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ app.include_router(health.router, prefix="/api")
 app.include_router(hotels.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(collaborators.router, prefix="/api")
+app.include_router(ws_module.router)
 
 # Health check endpoint
 @app.get("/health", tags=["Health"], deprecated=True)

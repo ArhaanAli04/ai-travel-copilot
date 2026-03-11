@@ -12,6 +12,8 @@ from app.schemas.trip import (
     ActivityReorderRequest, DayReplanRequest, ActivityDeleteResponse ,ActivityUpdate,
     ActivityPhotoResponse
 )
+import asyncio
+from app.api.ws import manager as ws_manager
 from app.models.collaborator import TripCollaborator, CollaboratorStatus
 import logging
 from app.ai.planner_agent import create_planner_agent
@@ -181,6 +183,10 @@ async def update_trip(
         
         db.commit()
         db.refresh(trip)
+        asyncio.create_task(ws_manager.broadcast(trip_id, {
+            "type": "trip_updated",
+            "payload": {"trip_id": trip_id, "updated_fields": list(update_data.keys())}
+        }))
         
         logger.info(f"✏️ Updated trip {trip_id}")
         return trip
@@ -304,6 +310,10 @@ async def generate_itinerary(trip_id: int, db: Session = Depends(get_db),current
         updated_trip = await planner.generate_itinerary(trip_id)
         
         logger.info(f"✅ Itinerary generated for trip {trip_id}")
+        asyncio.create_task(ws_manager.broadcast(trip_id, {
+            "type": "itinerary_generated",
+            "payload": {"trip_id": trip_id}
+        }))
         return updated_trip
         
     except HTTPException:
@@ -426,7 +436,10 @@ async def reorder_activities(
             activity_map[activity_id].order = new_order
         
         db.commit()
-        
+        asyncio.create_task(ws_manager.broadcast(trip_id, {
+            "type": "activities_reordered",
+            "payload": {"trip_id": trip_id, "day_id": day_id}
+        }))
         # Refresh activities to get updated order
         for act in activities:
             db.refresh(act)
@@ -584,6 +597,10 @@ async def replan_day(
             db.add(activity)
         
         db.commit()
+        asyncio.create_task(ws_manager.broadcast(trip_id, {
+            "type": "day_replanned",
+            "payload": {"trip_id": trip_id, "day_id": day_id}
+        }))
         
         logger.info(f"✅ Re-planned day {day_id} with {len(activities)} activities")
         
@@ -780,7 +797,11 @@ async def delete_activity(
             act.order -= 1
         
         db.commit()
-        
+        # Get trip_id from trip_day before we lost the reference
+        asyncio.create_task(ws_manager.broadcast(trip_day.trip_id, {
+            "type": "activity_deleted",
+            "payload": {"trip_id": trip_day.trip_id, "activity_id": activity_id, "day_id": trip_day_id}
+        }))
         # Count remaining activities
         remaining_count = db.query(Activity).filter(
             Activity.trip_day_id == trip_day_id
@@ -932,6 +953,10 @@ async def update_activity(
         
         db.commit()
         db.refresh(activity)
+        asyncio.create_task(ws_manager.broadcast(trip_day.trip_id, {
+            "type": "activity_updated",
+            "payload": {"trip_id": trip_day.trip_id, "activity_id": activity_id}
+        }))
         
         logger.info(f"✏️ Updated activity {activity_id}, adjusted {len(adjusted_activities)} subsequent activities")
         

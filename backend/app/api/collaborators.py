@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from typing import List
 import uuid
 from datetime import datetime, timezone
+import asyncio
+from app.api.ws import manager as ws_manager
 
 from app.core.postgres import get_db
 from app.core.dependencies import get_current_user, require_trip_owner, require_trip_access
@@ -67,6 +69,10 @@ async def invite_collaborator(
     db.add(collab)
     db.commit()
     db.refresh(collab)
+    asyncio.create_task(ws_manager.broadcast(trip_id, {
+        "type": "collaborator_added",
+        "payload": {"trip_id": trip_id, "email": body.email, "role": body.role.value}
+    }))
 
     # Send invite email (non-blocking failure — don't roll back if email fails)
     try:
@@ -104,7 +110,7 @@ def list_collaborators(
 
 # ── DELETE /trips/{trip_id}/collaborators/{collab_id} ──────────────
 @router.delete("/trips/{trip_id}/collaborators/{collab_id}", status_code=204)
-def remove_collaborator(
+async def remove_collaborator(
     trip_id: int,
     collab_id: int,
     db: Session = Depends(get_db),
@@ -122,13 +128,17 @@ def remove_collaborator(
 
     db.delete(collab)
     db.commit()
+    asyncio.create_task(ws_manager.broadcast(trip_id, {
+        "type": "collaborator_removed",
+        "payload": {"trip_id": trip_id, "collab_id": collab_id}
+    }))
     logger.info(f"🗑️ Removed collaborator {collab_id} from trip {trip_id}")
     return None
 
 
 # ── PATCH /trips/{trip_id}/collaborators/{collab_id} ───────────────
 @router.patch("/trips/{trip_id}/collaborators/{collab_id}", response_model=CollaboratorResponse)
-def change_collaborator_role(
+async def change_collaborator_role(
     trip_id: int,
     collab_id: int,
     body: ChangeRoleRequest,
@@ -148,6 +158,10 @@ def change_collaborator_role(
     collab.role = body.role
     db.commit()
     db.refresh(collab)
+    asyncio.create_task(ws_manager.broadcast(trip_id, {
+        "type": "collaborator_role_changed",
+        "payload": {"trip_id": trip_id, "collab_id": collab_id, "new_role": body.role.value}
+    }))
     logger.info(f"✏️ Changed collaborator {collab_id} role to {body.role.value}")
     return collab
 
@@ -189,7 +203,7 @@ def get_invite_preview(
 
 # ── POST /invites/{token}/accept ────────────────────────────────────
 @router.post("/invites/{token}/accept", response_model=AcceptInviteResponse)
-def accept_invite(
+async def accept_invite(
     token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -215,7 +229,10 @@ def accept_invite(
     collab.accepted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(collab)
-
+    asyncio.create_task(ws_manager.broadcast(collab.trip_id, {
+        "type": "collaborator_joined",
+        "payload": {"trip_id": collab.trip_id, "role": collab.role.value}
+    }))
     logger.info(f"✅ User {current_user.id} accepted invite to trip {collab.trip_id}")
     return AcceptInviteResponse(
         success=True,

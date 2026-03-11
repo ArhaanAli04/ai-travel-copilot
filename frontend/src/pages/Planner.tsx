@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect,useRef, useCallback } from 'react';
+import { useAuth,useUser } from '@clerk/react';
 import { tripApi, type Trip, type TripCreate } from '../services/api';
 import { Navigation } from '../components/Navigation';
 import { Hero } from '../components/Hero';
@@ -6,6 +7,11 @@ import { TripFormV2 } from '../components/TripFormV2';
 import { TripSummaryV2 } from '../components/TripSummaryV2';
 import { useLocation } from 'react-router-dom';
 import UnifiedSidebar from '../components/UnifiedSidebar';
+import { useWebSocket } from '../hooks/useWebSocket';              // ADD
+import { usePolling } from '../hooks/usePolling';                  // ADD
+import { ToastContainer, useToast } from '../components/Toast';   // ADD
+import { PresenceIndicator } from '../components/PresenceIndicator'; // ADD
+import type { WSMessage } from '../types/collaborator';    
 const Planner = () => {
   // Form state
   const [formData, setFormData] = useState<TripCreate>({
@@ -38,6 +44,37 @@ const Planner = () => {
   const [selectedTripId, setSelectedTripId] = useState<number | undefined>(undefined);
   const [refreshSidebar, setRefreshSidebar] = useState(0);
   const location = useLocation();
+
+  // ── ADD: New state ──────────────────────────────────────────────
+  const [wsToken, setWsToken] = useState<string | null>(null);
+  const [viewers, setViewers] = useState<string[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdatedLabel, setLastUpdatedLabel] = useState<string>('');
+  const prevTripRef = useRef<Trip | null>(null);
+  const { toasts, addToast, dismissToast } = useToast();
+  const { getToken } = useAuth();
+  const { user } = useUser();
+
+  // ── ADD: Fetch WS token once ────────────────────────────────────
+  useEffect(() => {
+    getToken().then(t => setWsToken(t));
+  }, [getToken]);
+
+  // ── ADD: "Last updated X ago" label ────────────────────────────
+  useEffect(() => {
+    if (!lastUpdated) return;
+    const update = () => {
+      const sec = Math.floor((Date.now() - lastUpdated.getTime()) / 1000);
+      if (sec < 10) setLastUpdatedLabel('just now');
+      else if (sec < 60) setLastUpdatedLabel(`${sec}s ago`);
+      else setLastUpdatedLabel(`${Math.floor(sec / 60)}m ago`);
+    };
+    update();
+    const t = setInterval(update, 10000);
+    return () => clearInterval(t);
+  }, [lastUpdated]);
+
+  
   // Sync selectedTripId with createdTrip
   useEffect(() => {
     if (createdTrip) {
@@ -59,6 +96,79 @@ const Planner = () => {
     window.history.replaceState({}, '');
   }
 }, [location.state]);
+
+   // ── ADD: WS message handler ─────────────────────────────────────
+  const handleWsMessage = useCallback((msg: WSMessage) => {
+    const REFRESH_TYPES = [
+      'trip_updated', 'itinerary_generated', 'activity_deleted',
+      'activity_updated', 'activities_reordered', 'day_replanned',
+    ];
+
+    if (msg.type === 'presence_join' || msg.type === 'presence_leave') {
+      setViewers(msg.payload.viewers ?? []);
+      if (msg.type === 'presence_join' && msg.payload.display_name) {
+        addToast(`${msg.payload.display_name} joined`, 'info');
+      }
+      return;
+    }
+
+    if (msg.type === 'collaborator_joined') {
+      addToast('A new collaborator joined the trip!', 'success');
+      setRefreshSidebar(prev => prev + 1);
+      return;
+    }
+
+    if (msg.type === 'collaborator_removed') {
+      addToast('A collaborator was removed from this trip', 'info');
+      setRefreshSidebar(prev => prev + 1);
+      return;
+    }
+
+    if (REFRESH_TYPES.includes(msg.type) && createdTrip && msg.payload.trip_id === createdTrip.id) {
+      // Fetch fresh trip data and check if something actually changed
+      tripApi.getTrip(createdTrip.id).then(fresh => {
+        const prev = prevTripRef.current;
+        const changed = !prev || fresh.updated_at !== prev.updated_at;
+        prevTripRef.current = fresh;
+        setCreatedTrip(fresh);
+        setLastUpdated(new Date());
+        if (changed && msg.type !== 'trip_updated') {
+          const labels: Record<string, string> = {
+            itinerary_generated: '✨ Itinerary was generated',
+            activity_deleted: 'An activity was removed',
+            activity_updated: 'An activity was updated',
+            activities_reordered: 'Activities were reordered',
+            day_replanned: 'A day was replanned',
+          };
+          addToast(labels[msg.type] ?? 'Trip updated', 'info');
+        }
+      });
+    }
+  }, [createdTrip, addToast]);
+
+  // ── ADD: WebSocket hook ─────────────────────────────────────────
+  const { status: wsStatus } = useWebSocket({
+    tripId: selectedTripId ?? null,
+    token: wsToken,
+    onMessage: handleWsMessage,
+    onConnected: () => addToast('Live sync connected', 'success'),
+    onDisconnected: () => {},
+  });
+
+  // ── ADD: Polling fallback (only when WS disconnected) ──────────
+  usePolling({
+    fn: async () => {
+      if (!createdTrip) return;
+      const fresh = await tripApi.getTrip(createdTrip.id);
+      if (fresh.updated_at && fresh.updated_at !== createdTrip.updated_at) {
+        setCreatedTrip(fresh);
+        setLastUpdated(new Date());
+        addToast('Trip updated by collaborator', 'info');
+      }
+    },
+    interval: 30000,
+    enabled: wsStatus === 'disconnected' && !!createdTrip,
+  });
   // Create trip
   const handleTripCreate = async (data: TripCreate) => {
     setLoading(true);
@@ -255,6 +365,38 @@ const Planner = () => {
         <Hero />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
+          {/* ADD: Presence + sync status bar */}
+          {createdTrip && (
+            <div className="flex items-center justify-between mb-4 px-1">
+              <PresenceIndicator
+                viewers={viewers}
+                currentUserName={user?.fullName || user?.primaryEmailAddress?.emailAddress || ''}
+              />
+              <div className="flex items-center gap-2 text-xs text-[#6B7280]">
+                {wsStatus === 'connected' && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
+                    Live
+                  </span>
+                )}
+                {wsStatus === 'connecting' && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
+                    Connecting...
+                  </span>
+                )}
+                {wsStatus === 'disconnected' && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#6B7280]" />
+                    Polling
+                  </span>
+                )}
+                {lastUpdated && (
+                  <span>· Updated {lastUpdatedLabel}</span>
+                )}
+              </div>
+            </div>
+          )}
           {/* Error Display */}
           {error && (
             <div className="mb-6 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] animate-fade-in">
@@ -291,6 +433,8 @@ const Planner = () => {
           )}
         </main>
       </div>
+      {/* ADD: Toast container */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 };
