@@ -22,6 +22,7 @@ from app.models.disruption import DisruptionCase, DisruptionOption, DisruptionTy
 from app.models.draft_message import DraftMessage, MessageRecipientType, MessageTone
 from app.models.hotel import Hotel 
 from app.models.collaborator import TripCollaborator
+from app.models.documentation import TripDocumentation
 # (We'll add imports as we create models)
 
 # this is the Alembic Config object

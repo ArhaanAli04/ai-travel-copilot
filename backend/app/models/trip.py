@@ -57,7 +57,7 @@ class Trip(Base):
     flights = relationship("Flight", back_populates="trip", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="trip", cascade="all, delete-orphan")
     collaborators = relationship("TripCollaborator", back_populates="trip", cascade="all, delete-orphan")
-
+    documentation = relationship("TripDocumentation", back_populates="trip", cascade="all, delete-orphan", uselist=False)
     @property
     def collaborator_count(self) -> int:
         """Count of accepted collaborators for this trip"""
