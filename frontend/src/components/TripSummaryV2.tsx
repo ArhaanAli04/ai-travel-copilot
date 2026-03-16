@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2,AlertTriangle,Share2 } from 'lucide-react';
+import { Calendar, MapPin, Users, DollarSign, Sparkles, AlertCircle, RefreshCw, Plus, Edit2, Trash2,AlertTriangle,Share2, FileText } from 'lucide-react';
 import { ShareModal } from './ShareModal';
+import { DocumentationModal } from './DocumentationModal';
 import {type Trip,tripApi } from '../services/api';
 import FlightSection from './FlightSection';
 import HotelSection from './HotelSection';
@@ -41,6 +42,7 @@ export function TripSummaryV2({
   const [editLoading, setEditLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showDocsModal, setShowDocsModal]   = useState(false);
   const [showViewerModal, setShowViewerModal] = useState(false);
   const [regenerationModal, setRegenerationModal] = useState<{
     isOpen: boolean;
@@ -307,6 +309,15 @@ console.log('trip.hotels:', trip.hotels);
             >
               <Share2 className="w-4 h-4 text-gray-400 group-hover:text-[#38BDF8] transition-colors" />
             </button>
+
+            {/* Documents Button — ADD THIS */}
+            <button
+              onClick={() => setShowDocsModal(true)}
+              className="p-2.5 rounded-lg bg-white/5 hover:bg-[#F59E0B]/10 border border-[rgba(148,163,184,0.2)] hover:border-[#F59E0B]/50 transition-all group cursor-pointer"
+              title="Legal & Travel Documents"
+            >
+              <FileText className="w-4 h-4 text-gray-400 group-hover:text-[#F59E0B] transition-colors" />
+            </button>
             {/* Delete Button */}
             <button
               onClick={() => setShowDeleteModal(true)}
@@ -468,6 +479,13 @@ console.log('trip.hotels:', trip.hotels);
         tripId={trip.id}
         tripTitle={trip.title}
         isOwner={trip.is_owner ?? false}
+      />
+      <DocumentationModal
+        isOpen={showDocsModal}
+        onClose={() => setShowDocsModal(false)}
+        tripId={trip.id}
+        tripTitle={trip.title}
+        destinations={trip.destinations}
       />
       <ViewerRestrictedModal
         isOpen={showViewerModal}

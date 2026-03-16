@@ -23,6 +23,15 @@ export type {
   AcceptInviteResponse,
   CollaboratorRole,
 };
+import type {
+  DocumentationResponse,
+  DocumentationStatusResponse,
+} from '../types/documentation';
+export type {
+  DocumentationResponse,
+  DocumentationStatusResponse,
+};
+
 import type { ActivityPhoto } from '../types/local-discovery';
 const draftGenerationCache = new Map<number, Promise<{ drafts: DraftMessage[] }>>();
 // Base API URL (update if your backend runs on different port)
@@ -686,5 +695,42 @@ export const collaboratorApi = {
   },
 };
 
+// ── Documentation API ────────────────────────────────────────────────────────
+
+export const documentationApi = {
+  /**
+   * Generate documentation for a trip for the first time.
+   * Calls Gemini with grounding — takes 10-20s.
+   * Returns 404 if trip not found.
+   */
+  generate: async (tripId: number): Promise<DocumentationResponse> => {
+    const response = await api.post(`/trips/${tripId}/documentation/generate`);
+    return response.data;
+  },
+  /**
+   * Fetch existing documentation from DB (no AI call — instant).
+   * Returns 404 if documentation hasn't been generated yet.
+   */
+  get: async (tripId: number): Promise<DocumentationResponse> => {
+    const response = await api.get(`/trips/${tripId}/documentation`);
+    return response.data;
+  },
+  /**
+   * Regenerate documentation — overwrites existing record.
+   * Calls Gemini with grounding — takes 10-20s.
+   */
+  regenerate: async (tripId: number): Promise<DocumentationResponse> => {
+    const response = await api.post(`/trips/${tripId}/documentation/regenerate`);
+    return response.data;
+  },
+  /**
+   * Check if documentation exists for a trip without fetching full data.
+   * Useful to decide whether to show "Generate" or "View" button in UI.
+   */
+  getStatus: async (tripId: number): Promise<DocumentationStatusResponse> => {
+    const response = await api.get(`/trips/${tripId}/documentation/status`);
+    return response.data;
+  },
+};
 
 export default api;
