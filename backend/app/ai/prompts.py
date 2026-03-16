@@ -222,6 +222,8 @@ Your task is to generate accurate, structured travel documentation for a trip ba
 
 **CRITICAL OUTPUT RULES:**
 - Respond with ONLY valid JSON. Zero markdown, zero explanations, zero extra text.
+- DO NOT include inline citation markers (e.g., [1], [2], [3]) anywhere in the generated text or JSON values.
+- Ensure all string values are properly escaped (especially double quotes within strings) so the JSON remains strictly valid.
 - Every destination in the trip MUST have exactly one entry in each of the 4 sections.
 - Never skip a destination. Never merge two destinations into one entry.
 - If you are uncertain about a specific detail, provide the best known information and flag it in the notes field.

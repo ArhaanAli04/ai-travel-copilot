@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.postgres import get_db
@@ -22,6 +22,22 @@ from app.services.email_service import EmailService
 from app.services.photo_service import get_activity_photos
 from pydantic import BaseModel, EmailStr
 logger = logging.getLogger(__name__)
+
+async def _run_documentation_generation(trip_id: int, db: Session):
+    """
+    Background task: generate documentation after itinerary is created.
+    Non-blocking — itinerary generation returns immediately, docs generate in background.
+    Errors are logged but do not affect the itinerary response.
+    """
+    try:
+        logger.info(f"📋 Background: starting documentation generation for trip {trip_id}")
+        from app.ai.documentation_agent import create_documentation_agent
+        agent = create_documentation_agent(db)
+        await agent.generate_documentation(trip_id)
+        logger.info(f"✅ Background: documentation generated for trip {trip_id}")
+    except Exception as e:
+        # Non-fatal — documentation failure should never break itinerary generation
+        logger.error(f"⚠️ Background: documentation generation failed for trip {trip_id}: {e}")
 
 router = APIRouter(prefix="/trips", tags=["Planner"])
 
@@ -268,7 +284,7 @@ async def delete_trip(trip_id: int, db: Session = Depends(get_db),current_user: 
         raise HTTPException(status_code=500, detail=f"Failed to delete trip: {str(e)}")
 
 @router.post("/{trip_id}/plan", response_model=TripResponse)
-async def generate_itinerary(trip_id: int, db: Session = Depends(get_db),current_user: User = Depends(get_current_user)):
+async def generate_itinerary(trip_id: int,background_tasks: BackgroundTasks, db: Session = Depends(get_db),current_user: User = Depends(get_current_user)):
     """
     Generate AI-powered itinerary for a trip
     
@@ -314,6 +330,9 @@ async def generate_itinerary(trip_id: int, db: Session = Depends(get_db),current
             "type": "itinerary_generated",
             "payload": {"trip_id": trip_id}
         }))
+        # ADD: Trigger documentation generation in background (non-blocking)
+        background_tasks.add_task(_run_documentation_generation, trip_id, db)
+        logger.info(f"📋 Documentation generation queued for trip {trip_id}")
         return updated_trip
         
     except HTTPException:
