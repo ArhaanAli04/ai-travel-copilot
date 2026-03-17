@@ -168,8 +168,24 @@ class PlannerAgent:
     
     def _calculate_daily_budget(self, trip: Trip) -> float:
         """Calculate budget per day"""
+        currency = trip.budget_currency or "USD"
+
+        # Currency-aware default daily budget
+        DAILY_DEFAULTS = {
+            "USD": 100.0,
+            "EUR": 90.0,
+            "GBP": 80.0,
+            "INR": 3000.0,
+            "JPY": 10000.0,
+            "AUD": 150.0,
+            "CAD": 130.0,
+            "SGD": 130.0,
+            "AED": 370.0,
+            "THB": 3500.0,
+        }
+
         if not trip.budget:
-            return 100.0  # Default $100/day
+            return DAILY_DEFAULTS.get(currency, 100.0)
         
         start = trip.start_date.date() if isinstance(trip.start_date, datetime) else trip.start_date
         end = trip.end_date.date() if isinstance(trip.end_date, datetime) else trip.end_date
@@ -220,6 +236,7 @@ class PlannerAgent:
                 city=city,
                 weather=weather_data,
                 budget_per_day=budget_per_day,
+                budget_currency=trip.budget_currency or "USD",
                 interests=trip.interests or [],
                 preferences=trip.preferences or {},
                 guide_context=guide_context,
@@ -270,7 +287,8 @@ class PlannerAgent:
                     trip_day_id=trip_day.id,
                     order=idx,
                     activity_data=activity_data,
-                    guide_documents=guide_documents
+                    guide_documents=guide_documents,
+                    budget_currency=trip.budget_currency or "USD",
                 )
                 self.db.add(activity)
             
@@ -380,7 +398,8 @@ class PlannerAgent:
         trip_day_id: int,
         order: int,
         activity_data: Dict,
-        guide_documents: List = None
+        guide_documents: List = None,
+        budget_currency: str = "USD",
     ) -> Activity:
         """Create Activity record from parsed data
            Args:
@@ -434,7 +453,7 @@ class PlannerAgent:
             order=order,
             location=activity_data.get("location"),
             estimated_cost=activity_data.get("estimated_cost", 0.0),
-            cost_currency="USD",
+            cost_currency=budget_currency,
             source_refs=source_refs,
             ai_reasoning=activity_data.get("reasoning"),
             is_booked=False

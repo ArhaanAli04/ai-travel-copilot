@@ -5,7 +5,7 @@ import HotelSearchResults from './HotelSearchResults';
 import HotelSearchModal from './HotelSearchModal';
 import ConfirmModal from './ConfirmModal';
 import HotelPhotoModal from './HotelPhotoModal';
-
+import { formatCurrency } from '../utils/currency';
 interface HotelSectionProps {
   trip: Trip;
 }
@@ -168,9 +168,9 @@ const HotelSection = ({ trip }: HotelSectionProps) => {
                     <div>
                         <p className="text-xs text-[#9CA3AF]">Total Cost</p>
                         <p className="text-2xl font-bold text-[#22C55E]">
-                        ${hotel.total_price?.toLocaleString()}{' '}
+                        {formatCurrency(hotel.total_price, hotel.price_currency)}{' '}
                         <span className="text-sm font-normal text-[#9CA3AF]">
-                            (${hotel.price_per_night}/night)
+                            ({formatCurrency(hotel.price_per_night, hotel.price_currency)}/night)
                         </span>
                         </p>
                     </div>

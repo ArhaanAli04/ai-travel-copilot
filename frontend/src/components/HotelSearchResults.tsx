@@ -2,7 +2,7 @@ import { Hotel, Star, MapPin, X,Images } from 'lucide-react';
 import { type Hotel as HotelType } from '../services/api';
 import { useState } from 'react';
 import HotelPhotoModal from './HotelPhotoModal';
-
+import { formatCurrency } from '../utils/currency';
 interface HotelSearchResultsProps {
   hotels: HotelType[];
   onSelectHotel: (hotel: HotelType) => void;
@@ -126,9 +126,9 @@ const HotelSearchResults = ({
     <div>
         <p className="text-xs text-[#9CA3AF]">Total Cost</p>
         <p className="text-2xl font-bold text-[#22C55E]">
-        ${hotel.total_price?.toLocaleString()}{' '}
+        {formatCurrency(hotel.total_price, hotel.price_currency)}{' '}
         <span className="text-sm font-normal text-[#9CA3AF]">
-            (${hotel.price_per_night}/night)
+            ({formatCurrency(hotel.price_per_night, hotel.price_currency)}/night)
         </span>
         </p>
     </div>

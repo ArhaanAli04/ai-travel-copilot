@@ -28,6 +28,7 @@ class ActivityBase(BaseModel):
     address: Optional[str] = None
     estimated_cost: Optional[float] = None
     order: int
+    cost_currency: Optional[str] = "USD"
     class Config:
         from_attributes = True
         json_encoders = {

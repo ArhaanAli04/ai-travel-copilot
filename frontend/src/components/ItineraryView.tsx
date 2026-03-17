@@ -8,7 +8,7 @@ import { ViewerRestrictedModal } from './ViewerRestrictedModal';
 import type { ActivityExplanation } from '../services/api';
 import { EditableActivityField } from './EditableActivityField';
 import { ActivityPhotoSection } from './ActivityPhotoSection';
-
+import { formatCurrency } from '../utils/currency';
 interface ItineraryViewProps {
   trip: Trip;
   onTripUpdate: () => void;
@@ -394,7 +394,7 @@ const validateTitle = (title: string): string | null => {
                         {/* Cost Badge */}
                         {activity.estimated_cost !== undefined && activity.estimated_cost > 0 && (
                             <div className="px-3 py-1 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 text-[#22C55E] font-bold whitespace-nowrap ml-3">
-                            ${activity.estimated_cost}
+                            {formatCurrency(activity.estimated_cost, activity.cost_currency || trip.budget_currency)}
                             </div>
                         )}
                         </div>
@@ -473,7 +473,12 @@ const validateTitle = (title: string): string | null => {
                 <div className="mt-6 pt-4 border-t border-[rgba(148,163,184,0.2)] flex items-center justify-between">
                 <span className="text-[#9CA3AF]">Day Total</span>
                 <span className="text-2xl font-bold text-white">
-                    ${sortedActivities.reduce((sum, act) => sum + (act.estimated_cost || 0), 0).toFixed(2)}
+                    {formatCurrency(
+                      sortedActivities.reduce((sum, act) => sum + (act.estimated_cost || 0), 0),
+                      trip.budget_currency,
+                      { decimals: 2 }
+                    )}
+
                 </span>
                 </div>
             )}
@@ -503,10 +508,12 @@ const validateTitle = (title: string): string | null => {
 
           <div className="text-center p-3 rounded-xl bg-[#1F2937]/50">
             <div className="text-3xl font-bold text-[#22C55E] mb-1">
-              $
-              {trip.days
-                .reduce((sum, day) => sum + (day.activities?.reduce((daySum, act) => daySum + (act.estimated_cost || 0), 0) || 0), 0)
-                .toFixed(0)}
+              {formatCurrency(
+                trip.days.reduce((sum, day) =>
+                  sum + (day.activities?.reduce((daySum, act) => daySum + (act.estimated_cost || 0), 0) || 0), 0),
+                trip.budget_currency,
+                { decimals: 0 }
+              )}
             </div>
             <div className="text-sm text-[#9CA3AF]">Total Cost</div>
           </div>
@@ -524,7 +531,7 @@ const validateTitle = (title: string): string | null => {
                     return (
                         <>
                         <div className={`text-3xl font-bold mb-1 ${isUnderBudget ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
-                            ${remaining.toFixed(0)}
+                            {formatCurrency(remaining, trip.budget_currency, { decimals: 0 })}
                         </div>
                         <div className="text-sm text-[#9CA3AF] mb-1">Remaining</div>
                         <div className={`text-xs px-2 py-0.5 rounded-full inline-block ${

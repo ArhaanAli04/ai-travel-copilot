@@ -54,6 +54,7 @@ async def search_hotels(
             sort_by=search_params.sort_by or "relevance",
             max_price=search_params.max_price,
             min_rating=search_params.min_rating,
+            currency=trip.budget_currency or "USD",
         )
 
         logger.info(f"✅ Found {len(hotels)} hotels for trip {trip_id}")

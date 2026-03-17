@@ -90,6 +90,7 @@ def create_day_planning_prompt(
     city: str,
     weather: Dict,
     budget_per_day: float,
+    budget_currency: str,
     interests: List[str],
     preferences: Dict,
     guide_context: str,
@@ -137,7 +138,7 @@ def create_day_planning_prompt(
 **Trip Details:**
 - Travelers: {traveler_count} person(s)
 - Type: {trip_type}
-- Budget for this day: ${budget_per_day:.2f}
+- Budget for this day: {budget_per_day:.2f} {budget_currency}
 - Interests: {interests_str}
 
 **Additional Preferences:**
@@ -150,11 +151,12 @@ def create_day_planning_prompt(
 1. Create a realistic day plan with 3-5 activities
 2. **Weather-appropriate**: {"Choose indoor activities (museums, cafes, shopping) due to rain/bad weather" if precipitation > 40 else "Take advantage of good weather with outdoor activities"}
 3. Include meal suggestions (breakfast, lunch, dinner)
-4. Stay within ${budget_per_day:.2f} budget
+4. Stay within {budget_per_day:.2f}{budget_currency} budget
 5. Match activities to interests: {interests_str}
 6. Provide specific location names from the guide content
 7. Include realistic start times and durations
 8. Add brief reasoning for each activity
+9. **estimated_cost values must be in {budget_currency}**
 
 Respond with ONLY the JSON format specified in the system prompt. No markdown, no extra text.
 """

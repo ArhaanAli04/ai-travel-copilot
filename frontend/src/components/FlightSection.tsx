@@ -4,7 +4,7 @@ import { type Trip, type Flight, flightApi } from '../services/api';
 import FlightSearchResults from './FlightSearchResults';
 import FlightSearchModal from './FlightSearchModal'; // ✅ NEW IMPORT
 import ConfirmModal from './ConfirmModal';
-
+import { formatCurrency } from '../utils/currency';
 interface FlightSectionProps {
   trip: Trip;
 }
@@ -212,7 +212,7 @@ const FlightSection = ({ trip }: FlightSectionProps) => {
                   <div className="flex items-center justify-between">
                     <span className="text-[#9CA3AF]">Total Price</span>
                     <span className="text-2xl font-bold text-[#22C55E]">
-                      ${flight.price_amount} {flight.price_currency}
+                      {formatCurrency(flight.price_amount, flight.price_currency, { showCode: true })}
                     </span>
                   </div>
                 </div>

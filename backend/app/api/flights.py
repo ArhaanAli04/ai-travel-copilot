@@ -139,7 +139,8 @@ async def search_flights(
             max_stops=search_params.max_stops,
             passengers=search_params.passengers,
             return_date=search_params.return_date,  #  Pass return date
-            trip_type=trip_type  # Pass trip type
+            trip_type=trip_type,  # Pass trip type
+            currency=trip.budget_currency or "USD",
         )
         
         logger.info(f"Found {len(flights)} real flights for trip {trip_id}")

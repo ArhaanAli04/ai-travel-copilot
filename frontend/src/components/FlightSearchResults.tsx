@@ -1,6 +1,6 @@
 import { Plane, X } from 'lucide-react';
 import { type Flight } from '../services/api';
-
+import { formatCurrency } from '../utils/currency';
 interface FlightSearchResultsProps {
   flights: Flight[];
   onSelectFlight: (flight: Flight) => void;
@@ -47,7 +47,7 @@ const FlightSearchResults = ({ flights, onSelectFlight, loading, onClose }: Flig
         </div>
         <div className="text-right">
           <div className="text-3xl font-bold text-[#22C55E]">
-            ${flight.price_amount}
+            {formatCurrency(flight.price_amount, flight.price_currency)}
           </div>
           <div className="text-sm text-[#9CA3AF]">{flight.price_currency}</div>
         </div>

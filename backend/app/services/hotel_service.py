@@ -23,6 +23,7 @@ def search_hotels_serpapi(
     sort_by: str = "relevance",
     max_price: Optional[float] = None,
     min_rating: Optional[float] = None,
+    currency: str = "USD",
 ) -> List[HotelSearchResponse]:
     """
     Search hotels using SerpAPI Google Hotels API
@@ -37,7 +38,7 @@ def search_hotels_serpapi(
         "check_in_date": check_in_date,
         "check_out_date": check_out_date,
         "adults": adults,
-        "currency": "USD",
+        "currency": currency,
         "hl": "en",
         "api_key": settings.SERPAPI_KEY,
     }
@@ -69,7 +70,8 @@ def search_hotels_serpapi(
         for prop in properties[:8]:  # limit to 8 results
             try:
                 hotel = parse_serpapi_hotel(
-                    prop, city, check_in_date, check_out_date, nights
+                    prop, city, check_in_date, check_out_date, nights,
+                    currency=currency, 
                 )
                 if hotel is None:
                     continue
@@ -97,6 +99,7 @@ def parse_serpapi_hotel(
     check_in_date: str,
     check_out_date: str,
     nights: int,
+    currency: str = "USD",
 ) -> Optional[HotelSearchResponse]:
     """Parse a single SerpAPI hotel property into HotelSearchResponse"""
     try:
@@ -163,7 +166,7 @@ def parse_serpapi_hotel(
             rating=float(rating) if rating else None,
             reviews_count=int(reviews_count) if reviews_count else None,
             price_per_night=float(price_per_night),
-            price_currency="USD",
+            price_currency=currency,
             total_price=round(float(price_per_night) * nights, 2) if nights else None,
             check_in_date=check_in_date,
             check_out_date=check_out_date,

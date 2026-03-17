@@ -17,7 +17,8 @@ def search_flights_serpapi(
     max_stops: Optional[int] = None,
     passengers: int = 1,
     return_date: Optional[str] = None,
-    trip_type: str = "one_way"
+    trip_type: str = "one_way",
+    currency: str = "USD", 
 ) -> List[FlightSearchResponse]:
     """
     Search real flights using SerpAPI Google Flights API
@@ -35,13 +36,15 @@ def search_flights_serpapi(
         # Search outbound flights
         outbound_flights = _search_one_way_flights(
             origin, destination, departure_date, 
-            cabin_class, max_stops, passengers, "outbound"
+            cabin_class, max_stops, passengers, "outbound",
+            currency=currency,
         )
         
         # Search return flights
         return_flights = _search_one_way_flights(
             destination, origin, return_date,
-            cabin_class, max_stops, passengers, "return"
+            cabin_class, max_stops, passengers, "return",
+            currency=currency,
         )
         
         # Combine both
@@ -53,7 +56,8 @@ def search_flights_serpapi(
         # One-way flight search
         return _search_one_way_flights(
             origin, destination, departure_date,
-            cabin_class, max_stops, passengers, "one_way"
+            cabin_class, max_stops, passengers, "one_way",
+            currency=currency,
         )
 
 
@@ -64,7 +68,8 @@ def _search_one_way_flights(
     cabin_class: str,
     max_stops: Optional[int],
     passengers: int,
-    flight_direction: str = "one_way"  # "outbound", "return", or "one_way"
+    flight_direction: str = "one_way",  # "outbound", "return", or "one_way"
+    currency: str = "USD",
 ) -> List[FlightSearchResponse]:
     """Internal function to search one-way flights"""
     
@@ -85,7 +90,7 @@ def _search_one_way_flights(
         "departure_id": dep_id,
         "arrival_id": arr_id,
         "outbound_date": departure_date,
-        "currency": "USD",
+        "currency": currency,
         "hl": "en",
         "adults": passengers,
         "type": "2",  # Always one-way for this search
@@ -120,7 +125,7 @@ def _search_one_way_flights(
         for flight_data in all_flights:
             try:
                 # parsed_flight handles the extraction of specific airports from the result
-                parsed_flight = parse_serpapi_flight(flight_data)
+                parsed_flight = parse_serpapi_flight(flight_data,currency=currency)
                 if parsed_flight:
                     # Add direction indicator
                     parsed_flight.flight_direction = flight_direction
@@ -136,7 +141,7 @@ def _search_one_way_flights(
         raise Exception(f"Failed to search flights: {str(e)}")
 
 
-def parse_serpapi_flight(flight_data: dict) -> Optional[FlightSearchResponse]:
+def parse_serpapi_flight(flight_data: dict, currency: str = "USD") -> Optional[FlightSearchResponse]:
     """
     Parse SerpAPI flight data into our FlightSearchResponse schema
     """
@@ -244,7 +249,7 @@ def parse_serpapi_flight(flight_data: dict) -> Optional[FlightSearchResponse]:
             layover_airports=layover_airports if layover_airports else None,
             cabin_class=travel_class,
             price_amount=float(price),
-            price_currency="USD",
+            price_currency=currency,
             booking_url=booking_url,
             aircraft_type=aircraft_type,
             baggage_allowance=baggage_allowance,
