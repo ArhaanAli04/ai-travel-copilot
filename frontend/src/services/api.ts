@@ -101,6 +101,7 @@ export interface Activity {
   address?: string;
   estimated_cost?: number;
   cost_currency?: string;
+  coordinates?: { lat: number; lng: number };
   order: number;
   source_refs?: Record<string, any>;
   ai_reasoning?: string;
