@@ -6,7 +6,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 // Derive WS base: http://host/api → ws://host
 function getWsBase(): string {
   const base = API_BASE_URL.replace('/api', '');
-  return base.replace(/^http/, 'ws');
+  return base
+  .replace(/^https/, 'wss')
+  .replace(/^http/, 'ws');
 }
 
 interface UseWebSocketOptions {
