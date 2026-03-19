@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = True
     SCHEDULER_TIMEZONE: str = "Asia/Kolkata"
     
-    # OSM Ingestion Schedule (monthly on 1st at 2 AM)
+    # OSM Ingestion Schedule (monthly on 1st at 2 AM )
     OSM_INGESTION_CRON_DAY: int = 1
     OSM_INGESTION_CRON_HOUR: int = 2
     OSM_INGESTION_CRON_MINUTE: int = 0
