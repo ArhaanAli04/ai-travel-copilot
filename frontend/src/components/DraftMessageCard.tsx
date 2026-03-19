@@ -2,15 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { disruptionApi } from '../services/api';
 import type { DisruptionCase } from '../types/disruption';
 
-interface DraftMessage {
-  id: number;
-  case_id: number;
-  recipient: string;
-  subject: string;
-  body: string;
-  tone: string;
-  generated_at: string;
-}
+import type { DraftMessage } from '../types/disruption';
 
 interface DraftMessageCardProps {
   disruptionCase: DisruptionCase;
@@ -218,7 +210,7 @@ export const DraftMessageCard: React.FC<DraftMessageCardProps> = ({ disruptionCa
         {/* Recipient */}
         <div className="p-3 bg-[rgba(15,23,42,0.5)] rounded-lg border border-[rgba(148,163,184,0.2)]">
           <div className="text-xs text-gray-500 mb-1">To:</div>
-          <div className="text-white font-medium">{currentDraft.recipient}</div>
+          <div className="text-white font-medium">{currentDraft.recipient_name || currentDraft.recipient_type}</div>
         </div>
 
         {/* Subject */}
@@ -269,7 +261,7 @@ export const DraftMessageCard: React.FC<DraftMessageCardProps> = ({ disruptionCa
 
           <button
             onClick={() => {
-              const mailtoLink = `mailto:${currentDraft.recipient}?subject=${encodeURIComponent(currentDraft.subject)}&body=${encodeURIComponent(currentDraft.body)}`;
+              const mailtoLink = `mailto:${currentDraft.recipient_email || ''}?subject=${encodeURIComponent(currentDraft.subject)}&body=${encodeURIComponent(currentDraft.body)}`;
               window.location.href = mailtoLink;
             }}
             className="py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-sm font-semibold rounded-lg transition-all"
@@ -293,9 +285,9 @@ export const DraftMessageCard: React.FC<DraftMessageCardProps> = ({ disruptionCa
         </div>
 
         {/* Generated At */}
-        {currentDraft.generated_at && (
+        {currentDraft.created_at && (
           <div className="text-xs text-gray-500 text-center pt-2 border-t border-[rgba(148,163,184,0.2)]">
-            Generated {new Date(currentDraft.generated_at).toLocaleString()}
+            Generated {new Date(currentDraft.created_at).toLocaleString()}
           </div>
         )}
       </div>
