@@ -1,89 +1,158 @@
+# ✈️ AI Travel Copilot
 
-# AI Travel Copilot
+A production-deployed, full-stack AI travel assistant built with FastAPI, React, and a multi-database architecture. Three fully functional modules — trip planning, disruption intelligence, and local discovery — each backed by real external APIs, automated data pipelines, and LLM integration.
 
-An intelligent, full-stack AI travel assistant with four core modules:
-1. **Agentic Trip Planner** - Plan and re-plan trips with AI
-2. **Travel Disruption Copilot** - Handle flight delays, cancellations, and rerouting
-3. **Local Experience Discovery** - Find hyper-local experiences and hidden gems
-4. **Safety & Scam Awareness** - Stay safe with real-time advisories and scam alerts
+**Live Demo:** https://ai-travel-copilot.vercel.app
+
+---
+
+## Modules
+
+| Module | Description | Docs |
+|--------|-------------|------|
+| 🗺️ Trip Planner | AI itinerary generation, flight/hotel search, real-time collaboration | [TRIP_PLANNER.md](docs/TRIP_PLANNER.md) |
+| ⚡ Disruption System | Flight status, passenger rights, AI recovery options | [DISRUPTION_SYSTEM.md](docs/DISRUPTION_SYSTEM.md) |
+| 📍 Local Discovery | Semantic POI search, geolocation, dual-DB retrieval | [LOCAL_DISCOVERY.md](docs/local_experience.md) |
+
+---
 
 ## Tech Stack
 
 ### Backend
-- **Framework:** FastAPI
-- **Databases:** PostgreSQL (Neon), MongoDB Atlas, Qdrant (vector DB)
-- **AI/LLM:** Google Gemini, LangChain
-- **Language:** Python 3.10+
+| Layer | Technology |
+|-------|-----------|
+| Framework | FastAPI (Python 3.11) |
+| Relational DB | PostgreSQL via Neon |
+| Document DB | MongoDB Atlas |
+| Vector DB | Qdrant Cloud |
+| LLM | Google Gemini (generation + embeddings) |
+| Scheduler | APScheduler |
+| Email | Resend |
+| Auth | Clerk |
+| Deployment | Railway |
 
 ### Frontend
-- **Framework:** React / Next.js
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
+| Layer | Technology |
+|-------|-----------|
+| Framework | React + TypeScript (Vite) |
+| Styling | Tailwind CSS |
+| Maps | Leaflet.js + OpenStreetMap |
+| Auth | Clerk |
+| Real-time | WebSockets |
+| Deployment | Vercel |
+
+### External APIs
+- AviationStack — real-time flight status
+- SerpAPI — flight and hotel search
+- Foursquare Places — POI enrichment
+- Tomorrow.io — live weather data
+- Unsplash + Wikimedia — POI photos
+- Mapbox — map rendering
+
+---
 
 ## Project Structure
+
 ```
-   ai-travel-copilot/
-   ├── backend/ # FastAPI application
-   │   ├── app/ # Main application code
-         ├── core/ # Core application logic
-         ├── models/ # Database models
-         ├── api/ # API routes
-         ├── services/ # Business logic services
-         ├── utils/ # Utility functions
-      ├── tests/ # Test cases
-      └── requirements.txt # Python dependencies
-   ├── frontend/ # React/Next.js application
-   ├── scripts/ # Data ingestion and utility scripts
-   └── docs/ # Documentation and architecture diagrams
+ai-travel-copilot/
+├── backend/
+│   ├── app/
+│   │   ├── api/          # Route handlers (planner, flights, hotels, disruptions, discovery, auth, ws)
+│   │   ├── core/         # DB connections (postgres, mongo, qdrant, config)
+│   │   ├── models/       # SQLAlchemy + Pydantic models
+│   │   ├── services/     # Business logic (scheduler, disruption, discovery, etc.)
+│   │   └── utils/        # Helpers (datetime, geolocation, formatting)
+│   ├── scripts/
+│   │   ├── ingest_osm.py         # OSM POI ingestion
+│   │   ├── ingest_rss.py         # RSS feed ingestion
+│   │   ├── enrich_foursquare.py  # Foursquare enrichment
+│   │   └── monitor_storage.py    # Storage monitoring
+│   ├── Dockerfile
+│   ├── railway.toml
+│   └── requirements.txt
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── api/          # API service layer
+│   │   ├── components/   # React components per module
+│   │   ├── hooks/        # Custom hooks (useWebSocket, useLocalDiscovery etc.)
+│   │   ├── pages/        # Page-level components
+│   │   ├── types/        # TypeScript type definitions
+│   │   └── utils/        # Utility functions
+│   ├── index.html
+│   └── vite.config.ts
+├── docs/
+│   ├── TRIP_PLANNER.md
+│   ├── DISRUPTION_SYSTEM.md
+│   └── LOCAL_DISCOVERY.md
+└── README.md
 ```
 
-## Setup Instructions
+---
 
-### Backend Setup
+## Local Setup
 
-1. **Navigate to backend directory:**
-   ```bash
-   cd backend
-2. **Create and activate virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-4. **Configure environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your actual credentials
-5. **Run the development server:**
-   ```bash
-   uvicorn app.main:app --reload
-6. **Access the API:**
+### Prerequisites
+- Python 3.11+
+- Node.js 22+
+- Git
 
-   API: http://localhost:8000
+### 1. Clone the repo
+```bash
+git clone https://github.com/ArhaanAli04/ai-travel-copilot.git
+cd ai-travel-copilot
+```
 
-Docs: http://localhost:8000/docs
+### 2. Backend setup
+```bash
+cd backend
+python -m venv venv
 
-Health: http://localhost:8000/health
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
 
-Frontend Setup
-(Coming in Day 2)
+pip install -r requirements.txt
+```
 
-Development Timeline
-Days 1-2: Core infrastructure setup
+Create your `.env` file in `backend/`:
+```bash
+cp .env.example .env
+# Fill in all values — see Environment Variables section below
+```
 
-Days 3-10: Trip Planner page
+Start the backend:
+```bash
+uvicorn app.main:app --reload
+```
 
-Days 11-15: Disruption Copilot page
+Backend runs at:
+- API: http://localhost:8000
+- Docs: http://localhost:8000/docs
+- Health: http://localhost:8000/health
 
-Days 16-20: Local Discovery page
+### 3. Frontend setup
+```bash
+cd frontend
+npm install
+```
 
-Days 21-24: Safety & Scam page
+Create your `.env` file in `frontend/`:
+```bash
+cp .env.example .env
+# Fill in VITE_ prefixed variables
+```
 
-Days 25-32: Auth, testing, deployment
+Start the frontend:
+```bash
+npm run dev
+```
 
-License
-MIT License
+Frontend runs at: http://localhost:5173
 
 
-***
+
+
+---
+

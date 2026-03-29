@@ -18,6 +18,7 @@ This document provides a **production‑ready, end‑to‑end architecture overv
 3. [Complete Data Flow](#3-complete-data-flow)
 4. [Data Ingestion Pipeline](#4-data-ingestion-pipeline)
 5. [Technology Stack Summary](#5-technology-stack-summary)
+5. [API Endpoints](#6-api-endpoints)
 
 ---
 
@@ -286,3 +287,15 @@ python scripts/ingest_osm_pois.py mumbai
 
 
 
+## 6. API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/local-discovery/search` | Search POIs (query + location) |
+| POST | `/api/local-discovery/chat` | Chat interface message |
+| POST | `/api/local-discovery/feedback` | Submit like/dislike for POI |
+| GET | `/api/local-discovery/photos/{poi_id}` | Get POI photos (cached) |
+| GET | `/api/local-discovery/preferences` | Get user preferences |
+| PUT | `/api/local-discovery/preferences` | Update user preferences |
+
+---
