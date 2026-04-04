@@ -56,7 +56,7 @@ function App() {
           <Route path="/disruptions/:id" element={<AuthGuard><DisruptionPage /></AuthGuard>} />
           <Route path="/local-discovery" element={<AuthGuard><LocalDiscovery /></AuthGuard>} />
           <Route path="/local-discovery/:sessionId" element={<AuthGuard><LocalDiscovery /></AuthGuard>} />
-          <Route path="/safety" element={<AuthGuard><Safety /></AuthGuard>} />
+          
 
           <Route path="/" element={<Navigate to="/planner" replace />} />
           <Route path="*" element={<Navigate to="/planner" replace />} />

@@ -7,7 +7,7 @@ const navItems = [
   { name: "Planner", path: "/planner" },
   { name: "Disruption", path: "/disruptions" },
   { name: "Local Discovery", path: "/local-discovery" },
-  { name: "Safety", path: "/safety" },
+  
 ];
 
 export function Navigation() {
