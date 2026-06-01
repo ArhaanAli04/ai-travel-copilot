@@ -2,13 +2,6 @@
 
 > **AI Travel Copilot · Local Discovery & Recommendations**
 
-This document provides a **production‑ready, end‑to‑end architecture overview** of the **Local Experience** feature. It is intended to serve as:
-
-* 📘 Onboarding documentation for new engineers
-* 🧠 System design & architecture reference
-* 🔌 API and data‑flow documentation
-* 🚀 Deployment & scaling guide
-
 ---
 
 ## Table of Contents
