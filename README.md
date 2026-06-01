@@ -2,7 +2,7 @@
 
 A production-deployed, full-stack AI travel assistant built with FastAPI, React, and a multi-database architecture. Three fully functional modules — trip planning, disruption intelligence, and local discovery — each backed by real external APIs, automated data pipelines, and LLM integration.
 
-**Live Demo(might be down because of railway platoform free trail expiry):** https://ai-travel-copilot.vercel.app
+**Live Demo (might be down because of railway platform free trail expiry):** https://ai-travel-copilot.vercel.app
 
 ---
 
